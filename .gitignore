@@ -1,3 +1,14 @@
+# misc
+debugImages
+
+# build dirs
+.vs
+out
+
+# clangd language server stuff
+compile_commands.json
+.cache
+
 # Prerequisites
 *.d
 
