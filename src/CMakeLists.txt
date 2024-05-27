@@ -37,6 +37,7 @@ set(CUDA_COMPILE_OPTIONS
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
 
+
 # Create object library for OptiX files
 set(OPTIXIR_TARGET "OptixIR_Compilation")
 add_library(${OPTIXIR_TARGET} OBJECT ${CUDA_OPTIXIR_FILES})
@@ -87,6 +88,7 @@ add_custom_target(${PTX_TARGET}_copyFiles ALL
 
 # Main Executable Target
 add_executable(${PROJECT_NAME} main.cpp)
+
 
 # TODO: make sure this is correct
 target_sources(${PROJECT_NAME} PRIVATE ${SOURCE_FILES} ${CUDA_FILES} )
