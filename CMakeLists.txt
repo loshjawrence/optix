@@ -37,7 +37,6 @@ find_package(glfw3 CONFIG REQUIRED)
 
 add_subdirectory(src)
 
-
 #target_include_directories(
 #	${PROJECT_NAME} PUBLIC
 #	${CUDAToolkit_INCLUDE_DIRS}
