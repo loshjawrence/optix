@@ -1,7 +1,7 @@
-#include <format>
-#include <iostream>
+
+#include "OptixUtil.h"
 
 int main()
 {
-    std::cout << std::format("\n{}", "Why hello there!");
+    InitOptix();
 }

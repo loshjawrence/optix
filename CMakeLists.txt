@@ -23,9 +23,8 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED True)
 set(CMAKE_CUDA_EXTENSIONS True)
 
-# Must be set before setting the FindOptiX.cmake dir on the CMAKE_MODULE_PATH
-set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 8.0.0")
-list(APPEND CMAKE_MODULE_PATH "${OptiX_INSTALL_DIR}/SDK/CMake")
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/dep/CMake)
+cmake_print_variables(CMAKE_MODULE_PATH)
 
 # setup CUDA, necessary for optix
 find_package(CUDAToolkit REQUIRED)
@@ -34,7 +33,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
-
+find_package(spdlog CONFIG REQUIRED)
 add_subdirectory(src)
 
 #target_include_directories(

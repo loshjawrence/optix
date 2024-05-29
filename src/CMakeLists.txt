@@ -110,6 +110,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   imgui::imgui
   glfw
   glad::glad
+  spdlog::spdlog_header_only
   #CUDA::cudart_static
   CUDA::cudart
   CUDA::cuda_driver
