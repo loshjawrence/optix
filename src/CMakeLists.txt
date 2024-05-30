@@ -1,12 +1,9 @@
-set(DEPENDENCIES_DIR ${PROJECT_SOURCE_DIR}/dep)
-
 file(
-    GLOB SOURCE_FILES
-    *.cpp
-    *.h
-    ${DEPENDENCIES_DIR}/dx/DDSTextureLoader.h
-    ${DEPENDENCIES_DIR}/dx/DDSTextureLoader.cpp
+    GLOB COMMON_SOURCE_FILES
+    ${PROJECT_SOURCE_DIR}/*.cpp
+    ${PROJECT_SOURCE_DIR}/*.h
 )
+
 file(GLOB CUDA_FILES cuda/*.cu)
 file(GLOB CUDA_OPTIXIR_FILES optixir/*.cu)
 file(GLOB CUDA_PTX_FILES ptx/*.cu)
@@ -14,8 +11,7 @@ file(GLOB CUDA_PTX_FILES ptx/*.cu)
 
  # Include Directories
 list(APPEND INCLUDE_DIRS
-    ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/src
-    ${CMAKE_SOURCE_DIR}/assets/fonts
+    ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     ${OPTIX_INCLUDE_DIR}
     ${Stb_INCLUDE_DIR}
@@ -23,16 +19,8 @@ list(APPEND INCLUDE_DIRS
 
 # Cuda Compile Options
 set(CUDA_COMPILE_OPTIONS
-    #--relocatable-device-code=true
-    #-gencode=arch=compute_70,code=\"sm_70,compute_70\"
-    #-x cu
-    #--maxrregcount=0
-    #--machine 64
-    #--compile
-    #-cudart static
     --use_fast_math
     --extended-lambda
-    --use-local-env
     $<$<AND:$<CONFIG:Debug>>:-G>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
@@ -66,31 +54,12 @@ set_target_properties(${PTX_TARGET} PROPERTIES
 )
 target_compile_definitions(${PTX_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
-##ensure the files are copied even if the main target is not built
-#add_custom_target(${OPTIXIR_TARGET}_copyFiles ALL
-#    COMMAND ${CMAKE_COMMAND} -E copy_directory
-#    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/CMakeFiles/${OPTIXIR_TARGET}.dir/OptixIr/"
-#    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/optixir/"
-#    COMMENT "Copying OptiX IR files to destination directory"
-#    DEPENDS ${OPTIXIR_TARGET}
-#)
-#add_custom_target(${PTX_TARGET}_copyFiles ALL
-#    COMMAND ${CMAKE_COMMAND} -E copy_directory
-#    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/CMakeFiles/${PTX_TARGET}.dir/Ptx/"
-#    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/ptx/"
-#    COMMENT "Copying PTX files to destination directory"
-#    DEPENDS ${PTX_TARGET}
-#)
-
 
 # Main Executable Target
 add_executable(${PROJECT_NAME} main.cpp)
 
+target_sources(${PROJECT_NAME} PRIVATE ${COMMON_SOURCE_FILES} ${CUDA_FILES} )
 
-# TODO: make sure this is correct
-target_sources(${PROJECT_NAME} PRIVATE ${SOURCE_FILES} ${CUDA_FILES} )
-
-#add_dependencies(${PROJECT_NAME} ${OPTIXIR_TARGET} ${PTX_TARGET} ${OPTIXIR_TARGET}_copyFiles ${PTX_TARGET}_copyFiles)
 add_dependencies(${PROJECT_NAME} ${OPTIXIR_TARGET} ${PTX_TARGET})
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
