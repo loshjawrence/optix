@@ -1,4 +1,3 @@
-
 #include "OptixUtil.h"
 
 int main()

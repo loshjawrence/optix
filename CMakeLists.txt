@@ -26,7 +26,6 @@ set(CMAKE_CUDA_EXTENSIONS True)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/dep/CMake)
 cmake_print_variables(CMAKE_MODULE_PATH)
 
-# setup CUDA, necessary for optix
 find_package(CUDAToolkit REQUIRED)
 find_package(OptiX REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -34,4 +33,6 @@ find_package(Stb REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
-add_subdirectory(src)
+
+add_subdirectory(example01_helloOptix)
+add_subdirectory(example02_pipelineAndRayGen)

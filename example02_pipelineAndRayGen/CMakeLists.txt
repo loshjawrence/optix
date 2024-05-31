@@ -1,17 +1,40 @@
+set(SUBPROJECT_NAME "example02_pipelineAndRayGen")
+
 file(
-    GLOB COMMON_SOURCE_FILES
-    ${PROJECT_SOURCE_DIR}/*.cpp
-    ${PROJECT_SOURCE_DIR}/*.h
+    GLOB
+    COMMON_SOURCE_FILES
+    ${PROJECT_SOURCE_DIR}/common/*.cpp
+    ${PROJECT_SOURCE_DIR}/common/*.h
 )
 
-file(GLOB CUDA_FILES cuda/*.cu)
-file(GLOB CUDA_OPTIXIR_FILES optixir/*.cu)
-file(GLOB CUDA_PTX_FILES ptx/*.cu)
+file(
+    GLOB
+    SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+)
 
+file(
+    GLOB
+	CUDA_FILES
+	${CMAKE_CURRENT_SOURCE_DIR}/cuda/*.cu
+)
+
+file(
+    GLOB
+    CUDA_OPTIXIR_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/optixir/*.cu
+)
+
+file(
+    GLOB
+    CUDA_PTX_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ptx/*.cu
+)
 
  # Include Directories
 list(APPEND INCLUDE_DIRS
-    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/common
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     ${OPTIX_INCLUDE_DIR}
     ${Stb_INCLUDE_DIR}
@@ -24,7 +47,6 @@ set(CUDA_COMPILE_OPTIONS
     $<$<AND:$<CONFIG:Debug>>:-G>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
-
 
 # Create object library for OptiX files
 set(OPTIXIR_TARGET "OptixIR_Compilation")
@@ -54,44 +76,53 @@ set_target_properties(${PTX_TARGET} PROPERTIES
 )
 target_compile_definitions(${PTX_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
-
 # Main Executable Target
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${SUBPROJECT_NAME} main.cpp)
 
-target_sources(${PROJECT_NAME} PRIVATE ${COMMON_SOURCE_FILES} ${CUDA_FILES} )
+target_sources(
+    ${SUBPROJECT_NAME}
+    PRIVATE
+    ${SOURCE_FILES}
+    ${COMMON_SOURCE_FILES}
+    ${CUDA_FILES}
+)
 
-add_dependencies(${PROJECT_NAME} ${OPTIXIR_TARGET} ${PTX_TARGET})
+add_dependencies(${SUBPROJECT_NAME} ${OPTIXIR_TARGET} ${PTX_TARGET})
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
+target_include_directories(
+    ${SUBPROJECT_NAME}
+    PRIVATE
+    ${INCLUDE_DIRS}
+)
 
-target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_COMPILE_OPTIONS}>)
+target_compile_options(
+    ${SUBPROJECT_NAME}
+    PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_COMPILE_OPTIONS}>
+)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
+target_compile_definitions(${SUBPROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
+set_target_properties(${SUBPROJECT_NAME} PROPERTIES
 	CUDA_ARCHITECTURES native
 	CUDA_SEPARABLE_COMPILATION ON
     POSITION_INDEPENDENT_CODE ON
 	CUDA_VERBOSE_BUILD ON
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
-  imgui::imgui
-  glfw
-  glad::glad
-  spdlog::spdlog_header_only
-  #CUDA::cudart_static
-  CUDA::cudart
-  CUDA::cuda_driver
-  CUDA::nvtx3
-  CUDA::cufft
-  CUDA::curand
-  CUDA::cublas
-  CUDA::cublasLt
+target_link_libraries(
+	${SUBPROJECT_NAME}
+    PRIVATE
+	imgui::imgui
+	glfw
+	glad::glad
+	spdlog::spdlog_header_only
+	CUDA::cudart
+	#CUDA::cuda_driver CUDA::nvtx3 CUDA::cufft CUDA::curand CUDA::cublas CUDA::cublasLt
 )
 
 # Post Build Commands
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+add_custom_command(TARGET ${SUBPROJECT_NAME} POST_BUILD
 				   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/../compile_commands.json ${PROJECT_SOURCE_DIR}
                    COMMENT "Copying compile_commands.json to root for non-msvc text editors..."
 )
