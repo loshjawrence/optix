@@ -5,6 +5,7 @@
     "glad",
     "glfw3",
     "stb",
+    "glm",
     "spdlog",
     {
       "name": "imgui",

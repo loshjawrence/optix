@@ -1,4 +1,4 @@
-set(SUBPROJECT_NAME "example02_pipelineAndRayGen")
+set(SUBPROJECT_NAME "ex02")
 
 file(
     GLOB
@@ -114,11 +114,14 @@ target_link_libraries(
 	${SUBPROJECT_NAME}
     PRIVATE
 	imgui::imgui
+    glm::glm-header-only
 	glfw
 	glad::glad
 	spdlog::spdlog_header_only
 	CUDA::cudart
-	#CUDA::cuda_driver CUDA::nvtx3 CUDA::cufft CUDA::curand CUDA::cublas CUDA::cublasLt
+	CUDA::cuda_driver
+    CUDA::nvtx3
+    #CUDA::cufft CUDA::curand CUDA::cublas CUDA::cublasLt
 )
 
 # Post Build Commands

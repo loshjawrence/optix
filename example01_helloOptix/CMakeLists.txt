@@ -1,4 +1,4 @@
-set(SUBPROJECT_NAME "example01_hellowOptix")
+set(SUBPROJECT_NAME "ex01")
 file(
     GLOB COMMON_SOURCE_FILES
     ${PROJECT_SOURCE_DIR}/common/*.cpp

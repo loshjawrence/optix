@@ -1,6 +1,8 @@
-#include "OptixUtil.h"
+#include "SampleRenderer.h"
 
 int main()
 {
-    InitOptix();
+    SampleRenderer renderer;
+    renderer.init();
+    //renderer.render();
 }

@@ -1,4 +1,13 @@
 #pragma once
 
+#include <source_location>
 
-void InitOptix();
+#include <optix_types.h>
+
+
+void optixCheck(OptixResult result,
+                std::source_location sl = std::source_location::current());
+
+void initOptix();
+
+void optixSetLogCallback(const OptixDeviceContext& optixContext);
