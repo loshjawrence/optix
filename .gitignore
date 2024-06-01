@@ -2,7 +2,10 @@
 debugImages
 
 # optix intermediate representation
-.optixir
+*.optixir
+
+# CMakeGenerated config file that comes from the corresponding config/CMakeGenerated.h.in file
+CMakeGenerated.h
 
 # build dirs
 .vs

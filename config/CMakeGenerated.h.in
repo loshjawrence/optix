@@ -1,0 +1,10 @@
+#pragma once
+// NOTE: THIS FILE WONT COPY SOMETIMES IF YOU UPDATE IT, NEED TO DELETE IT
+constexpr int g_usePCH = @usePrecompiledHeaders@;
+
+#if g_usePCH == 0
+#include <filesystem>
+#endif
+
+const std::filesystem::path g_projectRoot = "@CMAKE_CURRENT_SOURCE_DIR@";
+const std::filesystem::path g_projectRootOptixIR = g_projectRoot / "optixir";

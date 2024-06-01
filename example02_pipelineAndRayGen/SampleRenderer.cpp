@@ -3,6 +3,8 @@
 
 #include <source_location>
 #include <format>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
@@ -21,6 +23,8 @@
 
 #include "CudaUtil.h"
 #include "OptixUtil.h"
+#include "IOUtil.h"
+#include "CMakeGenerated.h"
 
 static void context_log_cb(unsigned int level,
                              const char *tag,
@@ -63,7 +67,6 @@ void SampleRenderer::init()
 
     createContext();
     createModule();
-
     //createRaygenPrograms();
     //createMissPrograms();
     //createHitgroupPrograms();
@@ -93,42 +96,41 @@ void SampleRenderer::createContext() {
 
 void SampleRenderer::createModule()
 {
- //   moduleCompileOptions = {};
- //   moduleCompileOptions.maxRegisterCount = 50;
- //   moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
- //   moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    moduleCompileOptions = {};
+    moduleCompileOptions.maxRegisterCount = 50;
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
- //   pipelineCompileOptions = {};
- //   pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
- //   pipelineCompileOptions.usesMotionBlur = false;
- //   pipelineCompileOptions.numPayloadValues = 2;
- //   pipelineCompileOptions.numAttributeValues = 2;
- //   pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
- //   pipelineCompileOptions.pipelineLaunchParamsVariableName = "optixLaunchParams";
+    pipelineCompileOptions = {};
+    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+    pipelineCompileOptions.usesMotionBlur = false;
+    pipelineCompileOptions.numPayloadValues = 2;
+    pipelineCompileOptions.numAttributeValues = 2;
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+    pipelineCompileOptions.pipelineLaunchParamsVariableName = "optixLaunchParams";
 
- //   pipelineLinkOptions.maxTraceDepth = 2;
+    pipelineLinkOptions.maxTraceDepth = 2;
 
- //   // TODO: Need cmake to copy the optixir code over to the source dir.
- //   const std::string moduleFilename("./.optixir");
- //   //const std::string ptxCode = readData();
- //   const std::string ptxCode{};
- //   char log[2048];
- //   size_t sizeof_log = sizeof(log);
-	//optixCheck(optixModuleCreate(
-	//    optixContext,
-	//	&moduleCompileOptions,
-	//	&pipelineCompileOptions,
-	//	ptxCode.c_str(),
-	//	ptxCode.size(),
-	//	log,
-	//	&sizeof_log,
-	//	&module
-	//));
+    // TODO: Need cmake to copy the optixir code over to the source dir.
+    const fs::path moduleFilename = g_projectRootOptixIR / "dummy.optixir";
+    const std::vector<char> ptxCode = getBinaryDataFromFile(moduleFilename);
+    char log[2048];
+    size_t sizeof_log = sizeof(log);
+	optixCheck(optixModuleCreate(
+	    optixContext,
+		&moduleCompileOptions,
+		&pipelineCompileOptions,
+		ptxCode.data(),
+		ptxCode.size(),
+		log,
+		&sizeof_log,
+		&module
+	));
 
- //   if (sizeof_log > 1)
- //   {
- //       spdlog::error("{}", log);
-		 //exit(2);
- //   }
-	 //printSuccess();
+    if (sizeof_log > 1)
+    {
+        spdlog::error("{}", log);
+		exit(2);
+    }
+	 printSuccess();
 }
