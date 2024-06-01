@@ -97,39 +97,49 @@ void SampleRenderer::createContext() {
 void SampleRenderer::createModule()
 {
     moduleCompileOptions = {};
-    moduleCompileOptions.maxRegisterCount = 50;
-    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
     pipelineCompileOptions = {};
     pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
     pipelineCompileOptions.usesMotionBlur = false;
     pipelineCompileOptions.numPayloadValues = 2;
     pipelineCompileOptions.numAttributeValues = 2;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
     pipelineCompileOptions.pipelineLaunchParamsVariableName = "optixLaunchParams";
 
     pipelineLinkOptions.maxTraceDepth = 2;
 
-    const fs::path moduleFilename = g_projectRootOptixIR / "devicePrograms.cu";
+#if DEBUG
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+	pipelineCompileOptions.exceptionFlags =
+        OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW
+        | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH
+        | OPTIX_EXCEPTION_FLAG_USER;
+#else
+    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+#endif
+
+    const fs::path moduleFilename = g_projectRootOptixIR / "devicePrograms.optixir";
     const std::vector<char> ptxCode = getBinaryDataFromFile(moduleFilename);
     char log[2048];
     size_t sizeof_log = sizeof(log);
-	optixCheck(optixModuleCreate(
-	    optixContext,
-		&moduleCompileOptions,
-		&pipelineCompileOptions,
-		ptxCode.data(),
-		ptxCode.size(),
-		log,
-		&sizeof_log,
-		&module
-	));
+    OptixResult result = optixModuleCreate(optixContext,
+                                   &moduleCompileOptions,
+                                   &pipelineCompileOptions,
+                                   ptxCode.data(),
+                                   ptxCode.size(),
+                                   log,
+                                   &sizeof_log,
+                                   &module);
+	optixCheck(result);
 
-    if (sizeof_log > 1)
-    {
-        spdlog::error("{}", log);
-		exit(2);
-    }
+    //// it seems to be printing it anyway
+    //if (sizeof_log > 1)
+    //{
+    //    spdlog::error("{}", log);
+    //}
+
 	 printSuccess();
 }

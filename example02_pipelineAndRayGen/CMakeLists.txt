@@ -13,17 +13,16 @@ list(APPEND INCLUDE_DIRS
 # Cuda Compile Options
 set(CUDA_COMPILE_OPTIONS
 	--machine=64
-    #--gpu-architecture=compute_80
+    --gpu-architecture=compute_80
     --use_fast_math
 	--relocatable-device-code=true
     #--generate-line-info
-    #-Wno-deprecated-gpu-targets
+    -Wno-deprecated-gpu-targets
     -diag-suppress 20012
     --extended-lambda
     $<$<AND:$<CONFIG:Debug>>:-G>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
-
 
 # Create object library for OptiX files
 file(
@@ -37,7 +36,7 @@ set_property(TARGET ${OPTIXIR_TARGET} PROPERTY CUDA_OPTIX_COMPILATION ON)
 target_include_directories(${OPTIXIR_TARGET} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${OPTIXIR_TARGET} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_COMPILE_OPTIONS}>)
 set_target_properties(${OPTIXIR_TARGET} PROPERTIES
-	CUDA_ARCHITECTURES native
+	CUDA_ARCHITECTURES OFF
 	CUDA_SEPARABLE_COMPILATION ON
     POSITION_INDEPENDENT_CODE ON
 	CUDA_VERBOSE_BUILD ON
@@ -62,24 +61,16 @@ file(
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
 )
 
-file(
-    GLOB
-	CUDA_FILES
-	${CMAKE_CURRENT_SOURCE_DIR}/cuda/*.cu
-)
-
 target_sources(
     ${SUBPROJECT_NAME}
     PRIVATE
     ${SOURCE_FILES}
     ${COMMON_SOURCE_FILES}
-    ${CUDA_FILES}
 )
 
 add_dependencies(
     ${SUBPROJECT_NAME}
 	${OPTIXIR_TARGET}
-    #${PTX_TARGET}
 )
 
 target_include_directories(
@@ -100,7 +91,7 @@ target_compile_options(
 target_compile_definitions(${SUBPROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
 set_target_properties(${SUBPROJECT_NAME} PROPERTIES
-	CUDA_ARCHITECTURES native
+	CUDA_ARCHITECTURES OFF
 	CUDA_SEPARABLE_COMPILATION ON
     POSITION_INDEPENDENT_CODE ON
 	CUDA_VERBOSE_BUILD ON
