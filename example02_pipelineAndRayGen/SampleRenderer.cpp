@@ -31,7 +31,7 @@ static void context_log_cb(unsigned int level,
                              const char *message,
                              [[maybe_unused]]void*)
 {
-	spdlog::error("\n[{}][{}]: {}", level, tag, message );
+	spdlog::warn("\n[{}][{}]: {}", level, tag, message );
 }
 
 struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) RayGetRecord
@@ -121,25 +121,16 @@ void SampleRenderer::createModule()
     pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 #endif
 
-    const fs::path moduleFilename = g_projectRootOptixIR / "devicePrograms.optixir";
+    const fs::path moduleFilename = g_optixIRPath / "devicePrograms.optixir";
     const std::vector<char> ptxCode = getBinaryDataFromFile(moduleFilename);
-    char log[2048];
-    size_t sizeof_log = sizeof(log);
     OptixResult result = optixModuleCreate(optixContext,
                                    &moduleCompileOptions,
                                    &pipelineCompileOptions,
                                    ptxCode.data(),
                                    ptxCode.size(),
-                                   log,
-                                   &sizeof_log,
+                                   nullptr,
+        nullptr,
                                    &module);
 	optixCheck(result);
-
-    //// it seems to be printing it anyway
-    //if (sizeof_log > 1)
-    //{
-    //    spdlog::error("{}", log);
-    //}
-
-	 printSuccess();
+	printSuccess();
 }

@@ -6,5 +6,5 @@ constexpr int g_usePCH = @usePrecompiledHeaders@;
 #include <filesystem>
 #endif
 
-const std::filesystem::path g_projectRoot = "@CMAKE_CURRENT_SOURCE_DIR@";
-const std::filesystem::path g_projectRootOptixIR = g_projectRoot / "optixir";
+const std::filesystem::path g_projectRootPath = "@CMAKE_CURRENT_SOURCE_DIR@";
+const std::filesystem::path g_optixIRPath = g_projectRootPath / "optixir";
