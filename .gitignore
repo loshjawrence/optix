@@ -1,6 +1,9 @@
 # misc
 debugImages
 
+# optix intermediate representation
+.optixir
+
 # build dirs
 .vs
 out

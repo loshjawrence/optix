@@ -1,0 +1,3 @@
+* theres code in Optix_Apps intro_driver/src/Application for taking .optixir files and putting them through optixModuleCreate
+    * the optixir is generated, need to copy it over so that the codebase can find it
+    there should be old deleted cmake code for the copy somewhere in some earlier commit
