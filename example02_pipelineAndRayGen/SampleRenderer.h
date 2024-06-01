@@ -4,18 +4,19 @@
 #include "LaunchParams.h"
 
 #include <cuda_runtime.h> // need for cudaDeviceProp
-#include <optix_stubs.h> // needed for the rest
+#include <optix_stubs.h>  // needed for the rest
 
 class SampleRenderer {
 public:
     // performs all setup, including initializing optix, creates module, pipeline, programs, SBT, etc.
     void init();
 
-    //// render one frame
-    //void render();
-    //// resize frame buffer
-    //void resize(const glm::ivec2& newSize);
-    //std::vector<uint32_t> downloadPixels();
+    // render one frame
+    void render();
+
+    // resize frame buffer
+    void resizeFrameBuffer(const glm::ivec2& newSize);
+    uint32_t* downloadFrameBuffer();
 
 protected:
     /*! creates and configures a optix device context (in this simple
@@ -27,16 +28,20 @@ protected:
         single .cu file, using a single embedded ptx string */
     void createModule();
 
-    ///*! does all setup for the raygen program(s) we are going to use */
-    //void createRaygenPrograms();
-    ///*! does all setup for the miss program(s) we are going to use */
-    //void createMissPrograms();
-    ///*! does all setup for the hitgroup program(s) we are going to use */
-    //void createHitgroupPrograms();
-    ///*! assembles the full pipeline of all programs */
-    //void createPipeline();
-    ///*! constructs the shader binding table */
-    //void buildSBT();
+    /*! does all setup for the raygen program(s) we are going to use */
+    void createRaygenPrograms();
+
+    /*! does all setup for the miss program(s) we are going to use */
+    void createMissPrograms();
+
+    /*! does all setup for the hitgroup program(s) we are going to use */
+    void createHitgroupPrograms();
+
+    /*! assembles the full pipeline of all programs */
+    void createPipeline();
+
+    /*! constructs the shader binding table */
+    void buildSBT();
 
 protected:
     /*! @{ CUDA device context and stream that optix pipeline will run
