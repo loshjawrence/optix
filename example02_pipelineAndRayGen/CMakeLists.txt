@@ -1,29 +1,10 @@
 set(SUBPROJECT_NAME "ex02")
 
-file(
-    GLOB
-    COMMON_SOURCE_FILES
-    ${CMAKE_SOURCE_DIR}/common/*.cpp
-    ${CMAKE_SOURCE_DIR}/common/*.h
-)
-
-file(
-    GLOB
-    SOURCE_FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/*.h
-)
-
-file(
-    GLOB
-	CUDA_FILES
-	${CMAKE_CURRENT_SOURCE_DIR}/cuda/*.cu
-)
-
 
  # Include Directories
 list(APPEND INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     ${OPTIX_INCLUDE_DIR}
     ${Stb_INCLUDE_DIR}
@@ -31,11 +12,18 @@ list(APPEND INCLUDE_DIRS
 
 # Cuda Compile Options
 set(CUDA_COMPILE_OPTIONS
+	--machine=64
+    #--gpu-architecture=compute_80
     --use_fast_math
+	--relocatable-device-code=true
+    #--generate-line-info
+    #-Wno-deprecated-gpu-targets
+    -diag-suppress 20012
     --extended-lambda
     $<$<AND:$<CONFIG:Debug>>:-G>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
+
 
 # Create object library for OptiX files
 file(
@@ -56,27 +44,29 @@ set_target_properties(${OPTIXIR_TARGET} PROPERTIES
 )
 target_compile_definitions(${OPTIXIR_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
-## Create object library for PTX files
-#file(
-#    GLOB
-#    CUDA_PTX_FILES
-#    ${CMAKE_CURRENT_SOURCE_DIR}/ptx/*.cu
-#)
-#set(PTX_TARGET "PTX_Compilation")
-#add_library(${PTX_TARGET} OBJECT ${CUDA_PTX_FILES})
-#set_property(TARGET ${PTX_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
-#target_include_directories(${PTX_TARGET} PRIVATE ${INCLUDE_DIRS})
-#target_compile_options(${PTX_TARGET} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_COMPILE_OPTIONS}>)
-#set_target_properties(${PTX_TARGET} PROPERTIES
-#	CUDA_ARCHITECTURES native
-#	CUDA_SEPARABLE_COMPILATION ON
-#	POSITION_INDEPENDENT_CODE ON
-#	CUDA_VERBOSE_BUILD ON
-#)
-#target_compile_definitions(${PTX_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
 # Main Executable Target
 add_executable(${SUBPROJECT_NAME} main.cpp)
+
+file(
+    GLOB
+    COMMON_SOURCE_FILES
+    ${CMAKE_SOURCE_DIR}/common/*.cpp
+    ${CMAKE_SOURCE_DIR}/common/*.h
+)
+
+file(
+    GLOB
+    SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+)
+
+file(
+    GLOB
+	CUDA_FILES
+	${CMAKE_CURRENT_SOURCE_DIR}/cuda/*.cu
+)
 
 target_sources(
     ${SUBPROJECT_NAME}

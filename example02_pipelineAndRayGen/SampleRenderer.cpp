@@ -111,8 +111,7 @@ void SampleRenderer::createModule()
 
     pipelineLinkOptions.maxTraceDepth = 2;
 
-    // TODO: Need cmake to copy the optixir code over to the source dir.
-    const fs::path moduleFilename = g_projectRootOptixIR / "dummy.optixir";
+    const fs::path moduleFilename = g_projectRootOptixIR / "devicePrograms.cu";
     const std::vector<char> ptxCode = getBinaryDataFromFile(moduleFilename);
     char log[2048];
     size_t sizeof_log = sizeof(log);
