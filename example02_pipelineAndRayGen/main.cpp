@@ -1,8 +1,22 @@
 #include "SampleRenderer.h"
 
+#include <string>
+#include <spdlog/spdlog.h>
+
 int main()
 {
     SampleRenderer renderer;
-    renderer.init();
-    //renderer.render();
+    try {
+      SampleRenderer sample;
+
+      sample.init();
+      sample.render();
+      sample.saveFramebuffer();
+
+    } catch (std::runtime_error& e) {
+		spdlog::error("FATAL ERROR: {}", e.what());
+		exit(1);
+    }
+
+    return 0;
 }

@@ -9,7 +9,10 @@ CMakeGenerated.h
 
 # build dirs
 .vs
-out
+out/
+
+# where to print the framebuffer
+debugImages/
 
 # clangd language server stuff
 compile_commands.json

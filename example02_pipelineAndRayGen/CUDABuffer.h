@@ -10,6 +10,7 @@
 
 struct CUDABuffer {
     CUdeviceptr d_pointer() const;
+    size_t byteSize() const;
     uint32_t* dataAsU32Pointer() const;
     void resize(size_t size);
     void alloc(size_t size);
@@ -26,7 +27,10 @@ struct CUDABuffer {
         assert(d_ptr);
         const size_t byteCount = size * sizeof(T);
         assert(byteCount == sizeInBytes);
-        cudaCheck(cudaMemcpy(d_ptr, reinterpret_cast<const void*>(t), sizeInBytes, cudaMemcpyHostToDevice));
+        cudaCheck(cudaMemcpy(d_ptr,
+                             reinterpret_cast<const void*>(t),
+                             sizeInBytes,
+                             cudaMemcpyHostToDevice));
     }
 
     std::vector<uint8_t> download();

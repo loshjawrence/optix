@@ -25,6 +25,9 @@ namespace fs = std::filesystem;
 #include "IOUtil.h"
 #include "OptixUtil.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+
 static void context_log_cb(unsigned int level,
                            const char* tag,
                            const char* message,
@@ -56,8 +59,27 @@ static void printSuccess(
     spdlog::info("{} successfully ran", sl.function_name());
 }
 
+void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
+    if (newSize.x <= 0 || newSize.y <= 0) {
+        return;
+    }
+
+    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
+    launchParams.fbSize = newSize;
+    // colorBuffer.resize free's and reallocs so we need to set the pointer again
+    launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
+
+    printSuccess();
+}
+
+std::vector<uint8_t> SampleRenderer::downloadFramebuffer() {
+    return colorBuffer.download();
+}
+
 void SampleRenderer::init() {
     initOptix();
+
+    resizeFramebuffer({1200, 1024});
 
     createContext();
     createModule();
@@ -70,7 +92,6 @@ void SampleRenderer::init() {
     launchParamsBuffer.alloc(sizeof(launchParams));
     printSuccess();
 }
-
 void SampleRenderer::createContext() {
     const int deviceID{};
     cudaCheck(cudaSetDevice(deviceID));
@@ -269,17 +290,47 @@ void SampleRenderer::buildSBT() {
     printSuccess();
 }
 
-void SampleRenderer::resizeFrameBuffer(const glm::ivec2& newSize) {
-    if (newSize.x <= 0 || newSize.y <= 0) {
+void SampleRenderer::render() {
+    if (launchParams.fbSize.x == 0) {
+        spdlog::warn("Invalid launch params, launchParamsfbSize.x is {}",
+                     launchParams.fbSize.x);
         return;
     }
 
-    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
-    launchParams.fbSize = newSize;
-    // colorBuffer.resize free's and reallocs so we need to set the pointer again
-    launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
+    launchParamsBuffer.upload(&launchParams, 1);
+    launchParams.frameID++;
+    const int depth = 1;
+    optixCheck(optixLaunch(pipeline,
+                           stream,
+                           launchParamsBuffer.d_pointer(),
+                           launchParamsBuffer.byteSize(),
+                           &sbt,
+                           launchParams.fbSize.x,
+                           launchParams.fbSize.y,
+                           depth));
+
+    // sync - make sure the frame is rendered before we download and
+    // display (obviously, for a high-performance application you
+    // want to use streams and double-buffering, but for this simple
+    // example, this will have to do)
+    cudaSyncCheck();
+
+    printSuccess();
 }
 
-std::vector<uint8_t> SampleRenderer::downloadFrameBuffer() {
-    return colorBuffer.download();
+void SampleRenderer::saveFramebuffer() {
+    std::vector<uint8_t> pixels = downloadFramebuffer();
+    const fs::path filename = g_debugImagesPath / "example2.png";
+    if (!stbi_write_png(filename.string().c_str(),
+                        launchParams.fbSize.x,
+                        launchParams.fbSize.y,
+                        4,
+                        reinterpret_cast<const void*>(pixels.data()),
+                        launchParams.fbSize.x * sizeof(uint32_t))) {
+        spdlog::error("Failed to save framebuffer to {}.", filename.string());
+    }
+
+    spdlog::info("Framebuffer saved to {} ... done.", filename.string());
+
+    printSuccess();
 }
