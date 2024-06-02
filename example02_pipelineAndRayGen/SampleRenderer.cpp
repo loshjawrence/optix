@@ -32,7 +32,7 @@ static void context_log_cb(unsigned int level,
     spdlog::warn("\n[{}][{}]: {}", level, tag, message);
 }
 
-struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) RayGetRecord {
+struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord {
     // sbt record for raygen program
     // TODO: probably want to extract these two to SBTRecord
     char header[OPTIX_SBT_RECORD_HEADER_SIZE]{};
@@ -65,7 +65,7 @@ void SampleRenderer::init() {
     createMissPrograms();
     createHitgroupPrograms();
     createPipeline();
-    //buildSBT();
+    buildSBT();
 
     launchParamsBuffer.alloc(sizeof(launchParams));
     printSuccess();
@@ -226,20 +226,60 @@ void SampleRenderer::createPipeline() {
     printSuccess();
 }
 
-void SampleRenderer::resizeFrameBuffer(const glm::ivec2& newSize)
-{
+void SampleRenderer::buildSBT() {
+    // RAYGEN RECORDS
+    std::vector<RaygenRecord> raygenRecords;
+    for (int i = 0; i < raygenPGs.size(); ++i) {
+        RaygenRecord rec{};
+        optixCheck(optixSbtRecordPackHeader(raygenPGs[i], &rec));
+        //rec.data = ...later;
+        raygenRecords.push_back(rec);
+    }
+    raygenRecordsBuffer.alloc_and_upload(raygenRecords);
+    sbt.raygenRecord = raygenRecordsBuffer.d_pointer();
+
+    // MISS RECORDS
+    std::vector<MissRecord> missRecords;
+    for (int i = 0; i < missPGs.size(); ++i) {
+        MissRecord rec{};
+        optixCheck(optixSbtRecordPackHeader(missPGs[i], &rec));
+        //rec.data = ...later;
+        missRecords.push_back(rec);
+    }
+    missRecordsBuffer.alloc_and_upload(missRecords);
+    sbt.missRecordBase = missRecordsBuffer.d_pointer();
+    sbt.missRecordStrideInBytes = sizeof(MissRecord);
+    sbt.missRecordCount = int(missRecords.size());
+
+    // HITGROUP RECORDS
+    // we dont actually have any objects in this example, but lets create a dummy
+    // so that sbt doesnt have any nullptr (which the sanity checks in the compilation would complain about)
+    std::vector<HitgroupRecord> hitgroupRecords;
+    for (int i = 0; i < hitgroupPGs.size(); ++i) {
+        HitgroupRecord rec{};
+        optixCheck(optixSbtRecordPackHeader(hitgroupPGs[i], &rec));
+        rec.objectID = i;
+        hitgroupRecords.push_back(rec);
+    }
+    hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
+    sbt.hitgroupRecordBase = hitgroupRecordsBuffer.d_pointer();
+    sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+    sbt.hitgroupRecordCount = int(hitgroupRecords.size());
+
+    printSuccess();
+}
+
+void SampleRenderer::resizeFrameBuffer(const glm::ivec2& newSize) {
     if (newSize.x <= 0 || newSize.y <= 0) {
         return;
     }
 
-	colorBuffer.resize(newSize.x*newSize.y*sizeof(int));
-	launchParams.fbSize = newSize;
+    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
+    launchParams.fbSize = newSize;
     // colorBuffer.resize free's and reallocs so we need to set the pointer again
-	launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
+    launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
 }
 
-uint32_t* SampleRenderer::downloadFrameBuffer()
-{
-	void* result = colorBuffer.download();
-    return reinterpret_cast<uint32_t*>(result);
+std::vector<uint8_t> SampleRenderer::downloadFrameBuffer() {
+    return colorBuffer.download();
 }

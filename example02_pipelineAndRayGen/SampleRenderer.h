@@ -16,7 +16,7 @@ public:
 
     // resize frame buffer
     void resizeFrameBuffer(const glm::ivec2& newSize);
-    uint32_t* downloadFrameBuffer();
+    std::vector<uint8_t> downloadFrameBuffer();
 
 protected:
     /*! creates and configures a optix device context (in this simple

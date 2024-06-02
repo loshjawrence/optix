@@ -23,12 +23,11 @@ void CUDABuffer::resize(size_t size)
     alloc(size);
 }
 
-void* CUDABuffer::download()
+std::vector<uint8_t> CUDABuffer::download()
 {
 	assert(d_ptr);
-	void* result = std::malloc(sizeInBytes);
-	cudaCheck(
-		cudaMemcpy(result, d_ptr, sizeInBytes, cudaMemcpyHostToDevice));
+	std::vector<uint8_t> result(sizeInBytes);
+	cudaCheck(cudaMemcpy(&result[0], d_ptr, sizeInBytes, cudaMemcpyDeviceToHost));
 	return result;
 }
 

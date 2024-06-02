@@ -22,13 +22,14 @@ struct CUDABuffer {
     }
 
     template <class T>
-    void upload(const void* t, size_t byteCount) {
-        assert(!d_ptr);
+    void upload(const T* t, size_t size) {
+        assert(d_ptr);
+        const size_t byteCount = size * sizeof(T);
         assert(byteCount == sizeInBytes);
-        cudaCheck(cudaMemcpy(d_ptr, t, sizeInBytes, cudaMemcpyDeviceToHost));
+        cudaCheck(cudaMemcpy(d_ptr, reinterpret_cast<const void*>(t), sizeInBytes, cudaMemcpyHostToDevice));
     }
 
-    void* download();
+    std::vector<uint8_t> download();
 
 private:
     size_t sizeInBytes{};
