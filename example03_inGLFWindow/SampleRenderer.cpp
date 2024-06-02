@@ -292,9 +292,8 @@ void SampleRenderer::buildSBT() {
 }
 
 void SampleRenderer::render() {
-    if (launchParams.fbSize.x == 0) {
-        spdlog::warn("Invalid launch params, launchParamsfbSize.x is {}",
-                     launchParams.fbSize.x);
+    if (!launchParams.colorBuffer || launchParams.fbSize.x == 0) {
+        spdlog::warn("Ran with invalid launch params, launchParamsfbSize.x is 0 or launchParams.colorBuffer is nullptr. Need to init first.");
         return;
     }
 
@@ -315,8 +314,6 @@ void SampleRenderer::render() {
     // want to use streams and double-buffering, but for this simple
     // example, this will have to do)
     cudaSyncCheck();
-
-    printSuccess();
 }
 
 void SampleRenderer::saveFramebuffer() {

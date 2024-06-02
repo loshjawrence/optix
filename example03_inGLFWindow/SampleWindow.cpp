@@ -1,7 +1,11 @@
 #include "SampleWindow.h"
 
+#include <assert.h>
+#include <spdlog/spdlog.h>
+
 SampleWindow::SampleWindow(const std::string& title)
     : GLFWindow(title) {
+    sample.init();
 }
 
 void SampleWindow::render() {
@@ -10,8 +14,18 @@ void SampleWindow::render() {
 
 void SampleWindow::draw() {
     sample.downloadFramebuffer(pixels);
-    if (fbTexture == 0)
-        glGenTextures(1, &fbTexture);
+    if (!fbTexture)
+    {
+        try {
+			glGenTextures(1, &fbTexture);
+		} catch (std::runtime_error& e) {
+			spdlog::error("FATAL ERROR: {}", e.what());
+            GLenum result = glGetError();
+            spdlog::error("glGenTextures did not create a texture. Got {}",
+                          result);
+			exit(1);
+		}
+    }
 
     glBindTexture(GL_TEXTURE_2D, fbTexture);
     GLenum texFormat = GL_RGBA;

@@ -1,46 +1,14 @@
 #include "GLFWindow.h"
 
-#include <assert.h>
-
 #include <spdlog/spdlog.h>
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
-// #include <glad/glad.h>
 
 static void glfw_error_callback([[maybe_unused]] int error,
                                 const char* description) {
     spdlog::error("{}", description);
 }
-
-GLFWindow::~GLFWindow() {
-    glfwDestroyWindow(handle);
-    glfwTerminate();
-}
-
-GLFWindow::GLFWindow(const std::string& title) {
-    glfwSetErrorCallback(glfw_error_callback);
-
-    if (!glfwInit()) {
-        spdlog::error("GLFW init FAILED.");
-        glfwTerminate();
-        exit(1);
-    }
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-
-    handle = glfwCreateWindow(1200, 800, title.c_str(), NULL, NULL);
-    if (!handle) {
-        glfwTerminate();
-        exit(1);
-    }
-
-    glfwSetWindowUserPointer(handle, this);
-    glfwMakeContextCurrent(handle);
-    glfwSwapInterval(1);
-}
-
 static GLFWindow* getGLFWindow(GLFWwindow* window) {
     GLFWindow* gw = static_cast<GLFWindow*>(glfwGetWindowUserPointer(window));
     assert(gw);
@@ -73,15 +41,50 @@ static void glfwindow_mouseButton_cb(GLFWwindow* window,
     getGLFWindow(window)->mouseButton(button, action, mods);
 }
 
-void GLFWindow::run() {
-    int width, height;
-    glfwGetFramebufferSize(handle, &width, &height);
-    resize({width, height});
+GLFWindow::~GLFWindow() {
+    glfwDestroyWindow(handle);
+    glfwTerminate();
+}
+
+GLFWindow::GLFWindow(const std::string& title) {
+    glfwSetErrorCallback(glfw_error_callback);
+
+    if (!glfwInit()) {
+        spdlog::error("GLFW init FAILED.");
+        glfwTerminate();
+        exit(1);
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+
+    handle = glfwCreateWindow(1200, 800, title.c_str(), NULL, NULL);
+    if (!handle) {
+        glfwTerminate();
+        exit(1);
+    }
+
+    glfwSetWindowUserPointer(handle, this);
+    glfwMakeContextCurrent(handle);
+    glfwSwapInterval(1);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        spdlog::error("Failed to initialize OpenGL context.");
+        glfwTerminate();
+        exit(1);
+    }
 
     glfwSetFramebufferSizeCallback(handle, glfwindow_reshape_cb);
     glfwSetMouseButtonCallback(handle, glfwindow_mouseButton_cb);
     glfwSetKeyCallback(handle, glfwindow_key_cb);
     glfwSetCursorPosCallback(handle, glfwindow_mouseMotion_cb);
+}
+
+void GLFWindow::run() {
+    int width, height;
+    glfwGetFramebufferSize(handle, &width, &height);
+    resize({width, height});
 
     while (!glfwWindowShouldClose(handle)) {
         render();
