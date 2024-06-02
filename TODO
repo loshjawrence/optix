@@ -1,0 +1,6 @@
+example04:
+* add Camera and TraingleMesh that are located in ingo's example4 SampleRenderer to common/
+* need a new SampleWindow for my eample04, need to add ingo's GLFCameraWindow to common/GLFWindow.h
+* need to update main.cpp
+* need to update devicePrograms.cu
+* need to update SampleRenderer.cpp
