@@ -1,14 +1,14 @@
 set(SUBPROJECT_NAME "ex01")
 file(
     GLOB COMMON_SOURCE_FILES
-    ${PROJECT_SOURCE_DIR}/common/*.cpp
-    ${PROJECT_SOURCE_DIR}/common/*.h
+    ${PROJECT_SOURCE_DIR}/common/OptixUtil.*
+    ${PROJECT_SOURCE_DIR}/common/CudaUtil.*
 )
 
 file(
     GLOB SOURCE_FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
  # Include Directories

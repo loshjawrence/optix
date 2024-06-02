@@ -1,4 +1,4 @@
-set(SUBPROJECT_NAME "ex02")
+set(SUBPROJECT_NAME "ex03")
 
 
  # Include Directories
@@ -29,7 +29,7 @@ file(
     CUDA_OPTIXIR_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/optixir/*.cu
 )
-set(OPTIXIR_TARGET "OptixIR_Compilation02")
+set(OPTIXIR_TARGET "OptixIR_Compilation03")
 add_library(${OPTIXIR_TARGET} OBJECT ${CUDA_OPTIXIR_FILES})
 set_property(TARGET ${OPTIXIR_TARGET} PROPERTY CUDA_OPTIX_COMPILATION ON)
 target_include_directories(${OPTIXIR_TARGET} PRIVATE ${INCLUDE_DIRS})
@@ -42,7 +42,6 @@ set_target_properties(${OPTIXIR_TARGET} PROPERTIES
 )
 target_compile_definitions(${OPTIXIR_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
 
-
 # Main Executable Target
 add_executable(${SUBPROJECT_NAME} main.cpp)
 
@@ -54,6 +53,7 @@ file(
     ${CMAKE_SOURCE_DIR}/common/IOUtil.*
     ${CMAKE_SOURCE_DIR}/common/CUDABuffer.*
     ${CMAKE_SOURCE_DIR}/common/LaunchParams.*
+    ${CMAKE_SOURCE_DIR}/common/GLFWindow.*
 )
 
 file(
@@ -79,9 +79,6 @@ target_include_directories(
     ${SUBPROJECT_NAME}
     PRIVATE
     ${INCLUDE_DIRS}
-	#NOTE: file is copied to /src at PRE_BUILD
-    #TODO: is it needed if its getting copied
-	${CMAKE_CURRENT_BINARY_DIR}/generated # NOTE: this is out/build/<target>/generated
 )
 
 target_compile_options(
@@ -110,7 +107,6 @@ target_link_libraries(
 	CUDA::cudart
 	CUDA::cuda_driver
     CUDA::nvtx3
-    #CUDA::cufft CUDA::curand CUDA::cublas CUDA::cublasLt
 )
 
 set(usePrecompiledHeaders 0)
@@ -118,7 +114,7 @@ if(usePrecompiledHeaders)
   target_precompile_headers(
     ${SUBPROJECT_NAME}
     PRIVATE
-    src/stdafx.h
+    common/stdafx.h
   )
 endif()
 

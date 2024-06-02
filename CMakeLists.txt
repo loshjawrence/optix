@@ -37,3 +37,4 @@ find_package(spdlog CONFIG REQUIRED)
 
 add_subdirectory(example01_helloOptix)
 add_subdirectory(example02_pipelineAndRayGen)
+add_subdirectory(example03_inGLFWindow)

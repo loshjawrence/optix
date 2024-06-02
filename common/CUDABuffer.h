@@ -33,6 +33,16 @@ struct CUDABuffer {
                              cudaMemcpyHostToDevice));
     }
 
+    template<typename T>
+    void download(T *t, size_t count)
+    {
+      assert(d_ptr != nullptr);
+        const size_t byteCount = count * sizeof(T);
+      assert(byteCount == byteCount);
+      cudaCheck(cudaMemcpy((void *)t, d_ptr,
+                        byteCount, cudaMemcpyDeviceToHost));
+    }
+
     std::vector<uint8_t> download();
 
 private:

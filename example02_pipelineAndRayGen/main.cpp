@@ -1,6 +1,5 @@
 #include "SampleRenderer.h"
 
-#include <string>
 #include <spdlog/spdlog.h>
 
 int main()
