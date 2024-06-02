@@ -2,10 +2,6 @@
 
 #include "LaunchParams.h"
 
-//using namespace osc;
-
-// namespace osc {
-
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
       optixLaunch) */
@@ -80,4 +76,3 @@ extern "C" __global__ void __raygen__renderFrame() {
     optixLaunchParams.colorBuffer[fbIndex] = rgba;
 }
 
-//} // namespace osc
