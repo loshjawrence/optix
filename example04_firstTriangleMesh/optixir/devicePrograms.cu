@@ -7,6 +7,31 @@
       optixLaunch) */
 extern "C" __constant__ LaunchParams optixLaunchParams;
 
+enum { SURFACE_RAY_TYPE = 0, RAY_TYPE_COUNT };
+
+static __device__ void* unpackPointer(uint32_t i0, uint32_t i1) {
+    const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
+    void* ptr = reinterpret_cast<void*>(uptr);
+    return ptr;
+}
+
+static __device__ void packPointer(void* ptr, uint32_t& i0, uint32_t& i1) {
+    const uint64_t uptr = reinterpret_cast<uint64_t>(ptr);
+    i0 = uptr >> 32;
+    i1 = uptr & 0x00000000ffffffff;
+}
+
+template <typename T>
+static __device__ T* getPerRayData() {
+    const uint32_t u0 = optixGetPayload_0();
+    const uint32_t u1 = optixGetPayload_1();
+    return reinterpret_cast<T*>(unpackPointer(u0, u1));
+}
+
+static __device__ float3 asFloat3(glm::vec3 input) {
+    return float3{input.x, input.y, input.z};
+}
+
 //------------------------------------------------------------------------------
 // closest hit and anyhit programs for radiance-type rays.
 //
@@ -17,8 +42,18 @@ extern "C" __constant__ LaunchParams optixLaunchParams;
 // one group of them to set up the SBT)
 //------------------------------------------------------------------------------
 
-extern "C" __global__ void
-__closesthit__radiance() { /*! for this simple example, this will remain empty */
+/*! helper function that creates a semi-random color from an ID */
+__device__ glm::vec3 randomColor(size_t idx) {
+    unsigned int r = (unsigned int)(idx * 13 * 17 + 0x234235);
+    unsigned int g = (unsigned int)(idx * 7 * 3 * 5 + 0x773477);
+    unsigned int b = (unsigned int)(idx * 11 * 19 + 0x223766);
+    return glm::vec3((r & 255) / 255.f, (g & 255) / 255.f, (b & 255) / 255.f);
+}
+extern "C" __global__ void __closesthit__radiance() {
+    const int primID = optixGetPrimitiveIndex();
+    // prd = program record data?
+    glm::vec3& prd = *getPerRayData<glm::vec3>();
+    prd = randomColor(primID);
 }
 
 extern "C" __global__ void
@@ -33,48 +68,67 @@ __anyhit__radiance() { /*! for this simple example, this will remain empty */
 // need to have _some_ dummy function to set up a valid SBT
 // ------------------------------------------------------------------------------
 
-extern "C" __global__ void
-__miss__radiance() { /*! for this simple example, this will remain empty */
+extern "C" __global__ void __miss__radiance() {
+    glm::vec3& prd = *getPerRayData<glm::vec3>();
+    prd = glm::vec3(1.0f);
 }
 
 //------------------------------------------------------------------------------
 // ray gen program - the actual rendering happens in here
 //------------------------------------------------------------------------------
 extern "C" __global__ void __raygen__renderFrame() {
-    static int frameID = 0;
-    if (frameID == 0 && optixGetLaunchIndex().x == 0 &&
-        optixGetLaunchIndex().y == 0) {
-        frameID = 1;
-        // we could of course also have used optixGetLaunchDims to query
-        // the launch size, but accessing the optixLaunchParams here
-        // makes sure they're not getting optimized away (because
-        // otherwise they'd not get used)
-        printf("############################################\n");
-        printf("Hello world from OptiX 7 raygen program!\n(within a "
-               "%ix%i-sized launch)\n",
-               optixLaunchParams.frame.size.x,
-               optixLaunchParams.frame.size.y);
-        printf("############################################\n");
-    }
-
-    // ------------------------------------------------------------------
-    // for this example, produce a simple test pattern:
-    // ------------------------------------------------------------------
-
     // compute a test pattern based on pixel ID
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
 
-    const int r = (ix % 256);
-    const int g = (iy % 256);
-    const int b = ((ix + iy) % 256);
+    const auto& camera = optixLaunchParams.camera;
+
+    // one per-ray data for this example.
+    // what we intitialize it to won't matter,
+    // since this value will be overwritten by either the miss or hit program, anyway.
+    glm::vec3 pixelColorPRD = glm::vec3(0.0f);
+
+    // store the u64 pointer to the pixelColorPRD var on our stack
+    // in 2 u32s so that those u32s can be passed to optixTrace
+    // and downstream calls can manipulate pixelColorPRD
+    uint32_t u0, u1;
+    packPointer(&pixelColorPRD, u0, u1);
+
+    // normalize screen plane position, in [0, 1]^2
+    const glm::vec2 screen(glm::vec2(ix + 0.5f, iy + 0.5f) /
+                           glm::vec2(optixLaunchParams.frame.size));
+
+    // generate ray direction
+    glm::vec3 rayDir =
+        glm::normalize(camera.direction + ((screen.x - 0.5f) * camera.horizontal) +
+                  ((screen.y - 0.5f) * camera.vertical));
+
+    const float tmin = 0.0f;
+    const float tmax = 1e20f;
+    const float rayTime = 0.0f;
+    optixTrace(optixLaunchParams.traversable,
+               asFloat3(camera.position),
+               asFloat3(rayDir),
+               tmin,
+               tmax,
+               rayTime,
+               OptixVisibilityMask(255),
+               OPTIX_RAY_FLAG_DISABLE_ANYHIT, // OPTIX_RAY_FLAG_NONE,
+               SURFACE_RAY_TYPE,
+               RAY_TYPE_COUNT,
+               SURFACE_RAY_TYPE,
+               u0,
+               u1);
+
+    const int r = int(255.99f * pixelColorPRD.x);
+    const int g = int(255.99f * pixelColorPRD.y);
+    const int b = int(255.99f * pixelColorPRD.z);
 
     // convert to 32-bit rgba value (we explicitly set alpha to 0xff
     // to make stb_image_write happy ...
     const uint32_t rgba = 0xff000000 | (r << 0) | (g << 8) | (b << 16);
 
     // and write to frame buffer ...
-    const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
+    const uint32_t fbIndex = ix + (iy * optixLaunchParams.frame.size.x);
     optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
 }
-

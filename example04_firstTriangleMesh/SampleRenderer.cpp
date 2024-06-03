@@ -277,15 +277,107 @@ void SampleRenderer::buildSBT() {
     printSuccess();
 }
 
-OptixTraversableHandle SampleRenderer::buildAccel(const TriangleMesh& model)
-{
-	/*! build an acceleration structure for the given triangle mesh */
+OptixTraversableHandle SampleRenderer::buildAccel(const TriangleMesh& model) {
+    /*! build an acceleration structure for the given triangle mesh */
     vertexBuffer.alloc_and_upload(model.vertex);
     indexBuffer.alloc_and_upload(model.index);
-    OptixTraversableHandle asHandle{};
-    return asHandle;
-}
 
+    OptixTraversableHandle asHandle{};
+
+    // create local variables, because we need a *pointer* to the
+    // device pointers
+
+    // Triangle inputs
+    OptixBuildInput triangleInput{};
+    triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+    triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+    triangleInput.triangleArray.vertexStrideInBytes = sizeof(glm::vec3);
+    triangleInput.triangleArray.numVertices = int(model.vertex.size());
+    CUdeviceptr d_vertices = vertexBuffer.d_pointer();
+    triangleInput.triangleArray.vertexBuffers = &d_vertices;
+    triangleInput.triangleArray.indexFormat =
+        OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+    triangleInput.triangleArray.indexStrideInBytes = sizeof(glm::ivec3);
+    triangleInput.triangleArray.numIndexTriplets = int(model.index.size());
+    triangleInput.triangleArray.indexBuffer = indexBuffer.d_pointer();
+
+    uint32_t triangleInputFlags[] = {0};
+
+    // in this example, we have one sbt entry and no per-primitive materials
+    triangleInput.triangleArray.flags = triangleInputFlags;
+    triangleInput.triangleArray.numSbtRecords = 1;
+    triangleInput.triangleArray.sbtIndexOffsetBuffer = 0;
+    triangleInput.triangleArray.sbtIndexOffsetSizeInBytes = 0;
+    triangleInput.triangleArray.sbtIndexOffsetStrideInBytes = 0;
+
+    // BLAS setup
+    OptixAccelBuildOptions accelOptions{};
+    accelOptions.buildFlags =
+        OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+    accelOptions.motionOptions.numKeys = 1;
+    accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+    int numBuildInputs = 1;
+    OptixAccelBufferSizes blasBufferSizes{};
+    optixCheck(optixAccelComputeMemoryUsage(optixContext,
+                                             &accelOptions,
+                                             &triangleInput,
+                                             numBuildInputs,
+                                             &blasBufferSizes));
+
+    // prepare compaction
+    CUDABuffer compactedSizeBuffer{};
+    compactedSizeBuffer.alloc(sizeof(uint64_t));
+    OptixAccelEmitDesc emitDesc{};
+    emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+    emitDesc.result = compactedSizeBuffer.d_pointer();
+
+    // execute build (main stage)
+    CUDABuffer tempBuffer{};
+    tempBuffer.alloc(blasBufferSizes.tempSizeInBytes);
+    // outputBuffer is the uncompacted temp output buffer
+    CUDABuffer outputBuffer{};
+    outputBuffer.alloc(blasBufferSizes.outputSizeInBytes);
+
+    CUstream stream{};
+    int numEmittedProperties = 1;
+    optixCheck(optixAccelBuild(
+        optixContext,
+        stream,
+        &accelOptions,
+        &triangleInput,
+        numBuildInputs,
+        tempBuffer.d_pointer(),
+        tempBuffer.byteSize(),
+        outputBuffer.d_pointer(),
+        outputBuffer.byteSize(),
+        &asHandle,
+        &emitDesc,
+        numEmittedProperties
+        ));
+    cudaSyncCheck();
+
+    // perform compaction
+    uint64_t compactedSize;
+    compactedSizeBuffer.download(&compactedSize, 1);
+    asBuffer.alloc(compactedSize);
+    optixCheck(optixAccelCompact(optixContext,
+        stream,
+        asHandle,
+        asBuffer.d_pointer(),
+        asBuffer.byteSize(),
+        &asHandle
+        ));
+    cudaSyncCheck();
+
+    // cleanup
+    outputBuffer.free();
+    tempBuffer.free();
+    compactedSizeBuffer.free();
+
+    printSuccess();
+
+	return asHandle;
+}
 
 void SampleRenderer::render() {
     if (!launchParams.frame.colorBuffer || launchParams.frame.size.x == 0) {
@@ -357,11 +449,10 @@ void SampleRenderer::setCamera(const Camera& camera) {
         glm::normalize(glm::cross(launchParams.camera.direction, camera.up));
     launchParams.camera.vertical = cosFovy *
         glm::normalize(glm::cross(launchParams.camera.horizontal,
-                        launchParams.camera.direction));
+                                  launchParams.camera.direction));
 }
 
 void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
     colorBuffer.download(&outPayload[0], outPayload.size());
 }
-

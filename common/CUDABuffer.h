@@ -43,8 +43,6 @@ struct CUDABuffer {
                         byteCount, cudaMemcpyDeviceToHost));
     }
 
-    std::vector<uint8_t> download();
-
 private:
     size_t sizeInBytes{};
     void* d_ptr{};
