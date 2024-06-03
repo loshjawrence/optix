@@ -3,13 +3,23 @@
 #include <assert.h>
 #include <spdlog/spdlog.h>
 
-SampleWindow::SampleWindow(const std::string& title)
-    : GLFWindow(title) {
-    sample.init();
+SampleWindow::SampleWindow(const std::string &title,
+			 const TriangleMesh &model,
+			 const Camera &camera,
+			 const float worldScale)
+  : GLFCameraWindow(title,camera.from,camera.at,camera.up,worldScale),
+	sample(model)
+{
 }
 
 void SampleWindow::render() {
-    sample.render();
+      if (cameraFrame.modified) {
+        sample.setCamera(Camera{ cameraFrame.get_from(),
+                                 cameraFrame.get_at(),
+                                 cameraFrame.get_up() });
+        cameraFrame.modified = false;
+      }
+      sample.render();
 }
 
 void SampleWindow::draw() {

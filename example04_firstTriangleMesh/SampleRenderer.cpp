@@ -59,25 +59,7 @@ static void printSuccess(
     spdlog::info("{} successfully ran", sl.function_name());
 }
 
-void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
-    if (newSize.x <= 0 || newSize.y <= 0) {
-        return;
-    }
-
-    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
-    launchParams.fbSize = newSize;
-    // colorBuffer.resize free's and reallocs so we need to set the pointer again
-    launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
-
-    printSuccess();
-}
-
-void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
-    outPayload.resize(launchParams.fbSize.x * launchParams.fbSize.y);
-    colorBuffer.download(&outPayload[0], outPayload.size());
-}
-
-void SampleRenderer::init() {
+SampleRenderer::SampleRenderer(const TriangleMesh& model) {
     initOptix();
 
     resizeFramebuffer({1200, 1024});
@@ -87,12 +69,16 @@ void SampleRenderer::init() {
     createRaygenPrograms();
     createMissPrograms();
     createHitgroupPrograms();
+
+    launchParams.traversable = buildAccel(model);
+
     createPipeline();
     buildSBT();
 
     launchParamsBuffer.alloc(sizeof(launchParams));
     printSuccess();
 }
+
 void SampleRenderer::createContext() {
     const int deviceID{};
     cudaCheck(cudaSetDevice(deviceID));
@@ -291,22 +277,33 @@ void SampleRenderer::buildSBT() {
     printSuccess();
 }
 
+OptixTraversableHandle SampleRenderer::buildAccel(const TriangleMesh& model)
+{
+	/*! build an acceleration structure for the given triangle mesh */
+    vertexBuffer.alloc_and_upload(model.vertex);
+    indexBuffer.alloc_and_upload(model.index);
+    OptixTraversableHandle asHandle{};
+    return asHandle;
+}
+
+
 void SampleRenderer::render() {
-    if (!launchParams.colorBuffer || launchParams.fbSize.x == 0) {
-        spdlog::warn("Ran with invalid launch params, launchParamsfbSize.x is 0 or launchParams.colorBuffer is nullptr. Need to init first.");
+    if (!launchParams.frame.colorBuffer || launchParams.frame.size.x == 0) {
+        spdlog::warn(
+            "Ran with invalid launch params, launchParamsfbSize.x is 0 or "
+            "launchParams.frame.colorBuffer is nullptr. Need to init first.");
         return;
     }
 
     launchParamsBuffer.upload(&launchParams, 1);
-    launchParams.frameID++;
     const int depth = 1;
     optixCheck(optixLaunch(pipeline,
                            stream,
                            launchParamsBuffer.d_pointer(),
                            launchParamsBuffer.byteSize(),
                            &sbt,
-                           launchParams.fbSize.x,
-                           launchParams.fbSize.y,
+                           launchParams.frame.size.x,
+                           launchParams.frame.size.y,
                            depth));
 
     // sync - make sure the frame is rendered before we download and
@@ -321,11 +318,11 @@ void SampleRenderer::saveFramebuffer() {
     downloadFramebuffer(pixels);
     const fs::path filename = g_debugImagesPath / "example2.png";
     if (!stbi_write_png(filename.string().c_str(),
-                        launchParams.fbSize.x,
-                        launchParams.fbSize.y,
+                        launchParams.frame.size.x,
+                        launchParams.frame.size.y,
                         4,
                         reinterpret_cast<const void*>(pixels.data()),
-                        launchParams.fbSize.x * sizeof(uint32_t))) {
+                        launchParams.frame.size.x * sizeof(uint32_t))) {
         spdlog::error("Failed to save framebuffer to {}.", filename.string());
     }
 
@@ -333,3 +330,38 @@ void SampleRenderer::saveFramebuffer() {
 
     printSuccess();
 }
+
+void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
+    if (newSize.x <= 0 || newSize.y <= 0) {
+        return;
+    }
+
+    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
+    launchParams.frame.size = newSize;
+    // colorBuffer.resize free's and reallocs so we need to set the pointer again
+    launchParams.frame.colorBuffer = colorBuffer.dataAsU32Pointer();
+
+    setCamera(lastSetCamera);
+
+    printSuccess();
+}
+
+void SampleRenderer::setCamera(const Camera& camera) {
+    lastSetCamera = camera;
+    launchParams.camera.position = camera.from;
+    launchParams.camera.direction = glm::normalize(camera.at - camera.from);
+    const float cosFovy = 0.66f;
+    const float aspect =
+        launchParams.frame.size.x / float(launchParams.frame.size.y);
+    launchParams.camera.horizontal = cosFovy * aspect *
+        glm::normalize(glm::cross(launchParams.camera.direction, camera.up));
+    launchParams.camera.vertical = cosFovy *
+        glm::normalize(glm::cross(launchParams.camera.horizontal,
+                        launchParams.camera.direction));
+}
+
+void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
+    outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
+    colorBuffer.download(&outPayload[0], outPayload.size());
+}
+

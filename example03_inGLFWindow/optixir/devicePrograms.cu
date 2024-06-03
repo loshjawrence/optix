@@ -41,8 +41,10 @@ __miss__radiance() { /*! for this simple example, this will remain empty */
 // ray gen program - the actual rendering happens in here
 //------------------------------------------------------------------------------
 extern "C" __global__ void __raygen__renderFrame() {
-    if (optixLaunchParams.frameID == 0 && optixGetLaunchIndex().x == 0 &&
+    static bool hasPrinted = false;
+    if (!hasPrinted && optixGetLaunchIndex().x == 0 &&
         optixGetLaunchIndex().y == 0) {
+        hasPrinted = true;
         // we could of course also have used optixGetLaunchDims to query
         // the launch size, but accessing the optixLaunchParams here
         // makes sure they're not getting optimized away (because
@@ -50,8 +52,8 @@ extern "C" __global__ void __raygen__renderFrame() {
         printf("############################################\n");
         printf("Hello world from OptiX 7 raygen program!\n(within a "
                "%ix%i-sized launch)\n",
-               optixLaunchParams.fbSize.x,
-               optixLaunchParams.fbSize.y);
+               optixLaunchParams.frame.size.x,
+               optixLaunchParams.frame.size.y);
         printf("############################################\n");
     }
 
@@ -72,7 +74,7 @@ extern "C" __global__ void __raygen__renderFrame() {
     const uint32_t rgba = 0xff000000 | (r << 0) | (g << 8) | (b << 16);
 
     // and write to frame buffer ...
-    const uint32_t fbIndex = ix + iy * optixLaunchParams.fbSize.x;
-    optixLaunchParams.colorBuffer[fbIndex] = rgba;
+    const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
+    optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
 }
 

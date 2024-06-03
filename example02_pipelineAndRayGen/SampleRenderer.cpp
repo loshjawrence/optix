@@ -65,15 +65,15 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
     }
 
     colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
-    launchParams.fbSize = newSize;
+    launchParams.frame.size = newSize;
     // colorBuffer.resize free's and reallocs so we need to set the pointer again
-    launchParams.colorBuffer = colorBuffer.dataAsU32Pointer();
+    launchParams.frame.colorBuffer = colorBuffer.dataAsU32Pointer();
 
     printSuccess();
 }
 
 void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
-    outPayload.resize(launchParams.fbSize.x * launchParams.fbSize.y);
+    outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
     colorBuffer.download(&outPayload[0], outPayload.size());
 }
 
@@ -292,22 +292,21 @@ void SampleRenderer::buildSBT() {
 }
 
 void SampleRenderer::render() {
-    if (launchParams.fbSize.x == 0) {
+    if (launchParams.frame.size.x == 0) {
         spdlog::warn("Invalid launch params, launchParamsfbSize.x is {}",
-                     launchParams.fbSize.x);
+                     launchParams.frame.size.x);
         return;
     }
 
     launchParamsBuffer.upload(&launchParams, 1);
-    launchParams.frameID++;
     const int depth = 1;
     optixCheck(optixLaunch(pipeline,
                            stream,
                            launchParamsBuffer.d_pointer(),
                            launchParamsBuffer.byteSize(),
                            &sbt,
-                           launchParams.fbSize.x,
-                           launchParams.fbSize.y,
+                           launchParams.frame.size.x,
+                           launchParams.frame.size.y,
                            depth));
 
     // sync - make sure the frame is rendered before we download and
@@ -324,11 +323,11 @@ void SampleRenderer::saveFramebuffer() {
     downloadFramebuffer(pixels);
     const fs::path filename = g_debugImagesPath / "example2.png";
     if (!stbi_write_png(filename.string().c_str(),
-                        launchParams.fbSize.x,
-                        launchParams.fbSize.y,
+                        launchParams.frame.size.x,
+                        launchParams.frame.size.y,
                         4,
                         reinterpret_cast<const void*>(pixels.data()),
-                        launchParams.fbSize.x * sizeof(uint32_t))) {
+                        launchParams.frame.size.x * sizeof(uint32_t))) {
         spdlog::error("Failed to save framebuffer to {}.", filename.string());
     }
 

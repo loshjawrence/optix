@@ -2,6 +2,8 @@
 
 #include "CUDABuffer.h"
 #include "LaunchParams.h"
+#include "TriangleMesh.h"
+#include "Camera.h"
 
 #include <cuda_runtime.h> // need for cudaDeviceProp
 #include <optix_stubs.h>  // needed for the rest
@@ -9,7 +11,7 @@
 class SampleRenderer {
 public:
     // performs all setup, including initializing optix, creates module, pipeline, programs, SBT, etc.
-    void init();
+    SampleRenderer(const TriangleMesh &model);
 
     // render one frame
     void render();
@@ -20,6 +22,7 @@ public:
     void resizeFramebuffer(const glm::ivec2& newSize);
     void downloadFramebuffer(std::vector<uint32_t>& outPayload);
 
+	void setCamera(const Camera& camera);
 protected:
     /*! creates and configures a optix device context (in this simple
         example, only for the primary GPU device) */
@@ -44,6 +47,9 @@ protected:
 
     /*! constructs the shader binding table */
     void buildSBT();
+
+    /*! build an acceleration structure for the given triangle mesh */
+    OptixTraversableHandle buildAccel(const TriangleMesh &model);
 
 protected:
     /*! @{ CUDA device context and stream that optix pipeline will run
@@ -84,4 +90,14 @@ protected:
     /*! @} */
 
     CUDABuffer colorBuffer{};
+
+    /*! the camera we are to render with. */
+    Camera lastSetCamera;
+    
+    /*! the model we are going to trace rays against */
+    TriangleMesh model;
+    CUDABuffer vertexBuffer;
+    CUDABuffer indexBuffer;
+    //! buffer that keeps the (final, compacted) accel structure
+    CUDABuffer asBuffer;
 };
