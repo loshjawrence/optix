@@ -54,6 +54,8 @@ file(
     ${CMAKE_SOURCE_DIR}/common/CUDABuffer.*
     ${CMAKE_SOURCE_DIR}/common/LaunchParams.*
     ${CMAKE_SOURCE_DIR}/common/GLFWindow.*
+    ${CMAKE_SOURCE_DIR}/common/TriangleMesh.*
+    ${CMAKE_SOURCE_DIR}/common/Camera.*
 )
 
 file(
