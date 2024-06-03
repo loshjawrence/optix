@@ -16,4 +16,5 @@ struct TriangleMesh {
 
     std::vector<glm::vec3> vertex{};
     std::vector<glm::ivec3> index{};
+    glm::vec3 color{1.0f, 0.0f, 0.0f};
 };

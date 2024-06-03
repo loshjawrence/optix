@@ -1,6 +1,7 @@
 #include <optix_device.h>
 
 #include "LaunchParams.h"
+#include "TriangleMeshSBTData.h"
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -32,6 +33,10 @@ static __device__ float3 asFloat3(glm::vec3 input) {
     return float3{input.x, input.y, input.z};
 }
 
+static __device__ glm::vec3 asVec3(float3 input) {
+    return glm::vec3{input.x, input.y, input.z};
+}
+
 //------------------------------------------------------------------------------
 // closest hit and anyhit programs for radiance-type rays.
 //
@@ -49,11 +54,25 @@ __device__ glm::vec3 randomColor(size_t idx) {
     unsigned int b = (unsigned int)(idx * 11 * 19 + 0x223766);
     return glm::vec3((r & 255) / 255.f, (g & 255) / 255.f, (b & 255) / 255.f);
 }
+
 extern "C" __global__ void __closesthit__radiance() {
+    const TriangleMeshSBTData& sbtData =
+        *reinterpret_cast<const TriangleMeshSBTData*>(optixGetSbtDataPointer());
+
+    // compute normal
     const int primID = optixGetPrimitiveIndex();
-    // prd = program record data?
+    const glm::ivec3 index = sbtData.index[primID];
+    const glm::vec3& A = sbtData.vertex[index.x];
+    const glm::vec3& B = sbtData.vertex[index.y];
+    const glm::vec3& C = sbtData.vertex[index.z];
+    const glm::vec3& geomNormal = glm::normalize(glm::cross(B-A, C-A));
+
+    // compute lambertian coeff
+    const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
+    const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, geomNormal));
+
     glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = randomColor(primID);
+    prd = cosDN * sbtData.color;
 }
 
 extern "C" __global__ void

@@ -24,6 +24,7 @@ namespace fs = std::filesystem;
 #include "CudaUtil.h"
 #include "IOUtil.h"
 #include "OptixUtil.h"
+#include "TriangleMeshSBTData.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -51,7 +52,7 @@ struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) MissRecord {
 struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
     // sbt record for miss program
     char header[OPTIX_SBT_RECORD_HEADER_SIZE]{};
-    int objectID{};
+    TriangleMeshSBTData data{};
 };
 
 static void printSuccess(
@@ -260,13 +261,13 @@ void SampleRenderer::buildSBT() {
     sbt.missRecordCount = int(missRecords.size());
 
     // HITGROUP RECORDS
-    // we dont actually have any objects in this example, but lets create a dummy
-    // so that sbt doesnt have any nullptr (which the sanity checks in the compilation would complain about)
     std::vector<HitgroupRecord> hitgroupRecords;
     for (int i = 0; i < hitgroupPGs.size(); ++i) {
         HitgroupRecord rec{};
         optixCheck(optixSbtRecordPackHeader(hitgroupPGs[i], &rec));
-        rec.objectID = i;
+        rec.data.vertex = reinterpret_cast<glm::vec3*>(vertexBuffer.d_pointer());
+        rec.data.index = reinterpret_cast<glm::ivec3*>(indexBuffer.d_pointer());
+        rec.data.color = model.color;
         hitgroupRecords.push_back(rec);
     }
     hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);

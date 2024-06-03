@@ -1,4 +1,4 @@
-set(SUBPROJECT_NAME "ex04")
+set(SUBPROJECT_NAME "ex05")
 
 
  # Include Directories
@@ -29,7 +29,7 @@ file(
     CUDA_OPTIXIR_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/optixir/*.cu
 )
-set(OPTIXIR_TARGET "OptixIR_Compilation04")
+set(OPTIXIR_TARGET ${SUBPROJECT_NAME}_OptixIR_Compilation)
 add_library(${OPTIXIR_TARGET} OBJECT ${CUDA_OPTIXIR_FILES})
 set_property(TARGET ${OPTIXIR_TARGET} PROPERTY CUDA_OPTIX_COMPILATION ON)
 target_include_directories(${OPTIXIR_TARGET} PRIVATE ${INCLUDE_DIRS})
@@ -61,6 +61,7 @@ file(
     ${CMAKE_SOURCE_DIR}/common/CameraFrameManip.*
     ${CMAKE_SOURCE_DIR}/common/InspectModeManip.*
     ${CMAKE_SOURCE_DIR}/common/FlyModeManip.*
+    ${CMAKE_SOURCE_DIR}/common/TriangleMeshSBTData.*
 )
 
 file(

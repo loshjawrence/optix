@@ -1,4 +1,2 @@
-example04:
-* need to update SampleRenderer.cpp
-* need to update devicePrograms.cu
-* fix other examples so they build and run
+example06:
+* copy ex05

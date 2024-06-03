@@ -51,7 +51,6 @@ __device__ glm::vec3 randomColor(size_t idx) {
 }
 extern "C" __global__ void __closesthit__radiance() {
     const int primID = optixGetPrimitiveIndex();
-    // prd = program record data?
     glm::vec3& prd = *getPerRayData<glm::vec3>();
     prd = randomColor(primID);
 }
