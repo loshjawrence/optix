@@ -54,8 +54,13 @@ file(
     ${CMAKE_SOURCE_DIR}/common/CUDABuffer.*
     ${CMAKE_SOURCE_DIR}/common/LaunchParams.*
     ${CMAKE_SOURCE_DIR}/common/GLFWindow.*
+    ${CMAKE_SOURCE_DIR}/common/GLFCameraWindow.*
     ${CMAKE_SOURCE_DIR}/common/TriangleMesh.*
     ${CMAKE_SOURCE_DIR}/common/Camera.*
+    ${CMAKE_SOURCE_DIR}/common/CameraFrame.*
+    ${CMAKE_SOURCE_DIR}/common/CameraFrameManip.*
+    ${CMAKE_SOURCE_DIR}/common/InspectModeManip.*
+    ${CMAKE_SOURCE_DIR}/common/FlyModeManip.*
 )
 
 file(
