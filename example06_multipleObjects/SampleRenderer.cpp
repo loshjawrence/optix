@@ -267,7 +267,7 @@ void SampleRenderer::buildSBT() {
         HitgroupRecord rec;
         // all meshes use the same code, so all same hit group
         optixCheck(optixSbtRecordPackHeader(hitgroupPGs[0], &rec));
-        rec.data.color = meshes[meshID].color;
+        rec.data.diffuse = meshes[meshID].diffuse;
         rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
         rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
         hitgroupRecords.push_back(rec);

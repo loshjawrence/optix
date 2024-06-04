@@ -60,7 +60,10 @@ static void printSuccess(
     spdlog::info("{} successfully ran", sl.function_name());
 }
 
-SampleRenderer::SampleRenderer(const TriangleMesh& model) {
+SampleRenderer::SampleRenderer(const TriangleMesh& model)
+    : model(model)
+{
+
     initOptix();
 
     resizeFramebuffer({1200, 1024});
@@ -71,7 +74,7 @@ SampleRenderer::SampleRenderer(const TriangleMesh& model) {
     createMissPrograms();
     createHitgroupPrograms();
 
-    launchParams.traversable = buildAccel(model);
+    launchParams.traversable = buildAccel();
 
     createPipeline();
     buildSBT();
@@ -267,7 +270,7 @@ void SampleRenderer::buildSBT() {
         optixCheck(optixSbtRecordPackHeader(hitgroupPGs[i], &rec));
         rec.data.vertex = reinterpret_cast<glm::vec3*>(vertexBuffer.d_pointer());
         rec.data.index = reinterpret_cast<glm::ivec3*>(indexBuffer.d_pointer());
-        rec.data.color = model.color;
+        rec.data.diffuse = model.diffuse;
         hitgroupRecords.push_back(rec);
     }
     hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
@@ -278,7 +281,7 @@ void SampleRenderer::buildSBT() {
     printSuccess();
 }
 
-OptixTraversableHandle SampleRenderer::buildAccel(const TriangleMesh& model) {
+OptixTraversableHandle SampleRenderer::buildAccel() {
     /*! build an acceleration structure for the given triangle mesh */
     vertexBuffer.alloc_and_upload(model.vertex);
     indexBuffer.alloc_and_upload(model.index);

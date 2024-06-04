@@ -5,12 +5,13 @@
 
 struct LaunchParams
 {
-    //int frameID{};
-    //uint32_t* colorBuffer{};
-    //glm::ivec2 fbSize{};
+    int numPixelSamples = 1;
 
     struct {
+      int frameID = 0;
       uint32_t *colorBuffer;
+      uint32_t *normalBuffer;
+      uint32_t *albedoBuffer;
       glm::ivec2     size;
     } frame;
     
@@ -20,6 +21,14 @@ struct LaunchParams
       glm::vec3 horizontal;
       glm::vec3 vertical;
     } camera;
+
+    struct {
+        glm::vec3 origin;
+        glm::vec3 du;
+        glm::vec3 dv;
+        glm::vec3 power;
+
+    } light;
 
     OptixTraversableHandle traversable;
 };

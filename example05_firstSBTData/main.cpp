@@ -9,7 +9,9 @@ int main() {
     try {
       TriangleMesh model;
       // 100x100 thin ground plane
+      model.diffuse = glm::vec3(1.0f, 0.0f, 0.0f);
       model.addCube(glm::vec3(0.f,-1.5f,0.f),glm::vec3(10.f,.1f,10.f));
+
       // a unit cube centered on top of that
       model.addCube(glm::vec3(0.f,0.f,0.f),glm::vec3(2.f,2.f,2.f));
 

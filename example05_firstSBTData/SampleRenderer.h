@@ -49,7 +49,7 @@ protected:
     void buildSBT();
 
     /*! build an acceleration structure for the given triangle mesh */
-    OptixTraversableHandle buildAccel(const TriangleMesh &model);
+    OptixTraversableHandle buildAccel();
 
 protected:
     /*! @{ CUDA device context and stream that optix pipeline will run

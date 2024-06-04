@@ -7,6 +7,7 @@
     "stb",
     "glm",
     "spdlog",
+    "tinyobjloader",
     {
       "name": "imgui",
       "features": [

@@ -72,7 +72,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, geomNormal));
 
     glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = cosDN * sbtData.color;
+    prd = cosDN * sbtData.diffuse;
 }
 
 extern "C" __global__ void
