@@ -1,2 +1,2 @@
 assets/models/sponza filter=lfs diff=lfs merge=lfs -text
-assets/models/sponza/* filter=lfs diff=lfs merge=lfs -text
+assets/models/sponza/textures/*.png filter=lfs diff=lfs merge=lfs -text
