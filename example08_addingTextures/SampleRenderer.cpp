@@ -25,9 +25,9 @@ namespace fs = std::filesystem;
 #include "IOUtil.h"
 #include "Model.h"
 #include "OptixUtil.h"
+#include "Texture.h"
 #include "TriangleMesh.h"
 #include "TriangleMeshSBTData.h"
-#include "Texture.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -88,8 +88,7 @@ void SampleRenderer::createTextures() {
     int numTextures = (int)model->textures.size();
     textureArrays.resize(numTextures);
     textureObjects.resize(numTextures);
-    for (int textureID = 0; textureID < numTextures; ++textureID)
-    {
+    for (int textureID = 0; textureID < numTextures; ++textureID) {
         auto texture = model->textures[textureID];
 
         cudaChannelFormatDesc channel_desc{};
@@ -100,10 +99,7 @@ void SampleRenderer::createTextures() {
         channel_desc = cudaCreateChannelDesc<uchar4>();
 
         cudaArray_t& pixelArray = textureArrays[textureID];
-        cudaCheck(cudaMallocArray(&pixelArray,
-                                  &channel_desc,
-                                  width,
-                                  height));
+        cudaCheck(cudaMallocArray(&pixelArray, &channel_desc, width, height));
 
         int wOffset{};
         int hOffset{};
@@ -134,7 +130,8 @@ void SampleRenderer::createTextures() {
         tex_desc.sRGB = 0;
 
         cudaTextureObject_t cuda_tex{};
-        cudaCheck(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+        cudaCheck(
+            cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
         textureObjects[textureID] = cuda_tex;
     }
 }
@@ -159,6 +156,12 @@ OptixTraversableHandle SampleRenderer::buildAccel() {
         TriangleMesh& mesh = *(model->meshes[meshID]);
         vertexBuffer[meshID].alloc_and_upload(mesh.vertex);
         indexBuffer[meshID].alloc_and_upload(mesh.index);
+        if (!mesh.normal.empty()) {
+            normalBuffer[meshID].alloc_and_upload(mesh.normal);
+        }
+        if (!mesh.texcoord.empty()) {
+            texcoordBuffer[meshID].alloc_and_upload(mesh.texcoord);
+        }
 
         triangleInput[meshID] = {};
         triangleInput[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -203,12 +206,11 @@ OptixTraversableHandle SampleRenderer::buildAccel() {
     accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
     OptixAccelBufferSizes blasBufferSizes;
-    optixCheck(optixAccelComputeMemoryUsage(
-        optixContext,
-        &accelOptions,
-        triangleInput.data(),
-        numMeshes, // num_build_inputs
-        &blasBufferSizes));
+    optixCheck(optixAccelComputeMemoryUsage(optixContext,
+                                            &accelOptions,
+                                            triangleInput.data(),
+                                            numMeshes, // num_build_inputs
+                                            &blasBufferSizes));
 
     // prepare compaction
     CUDABuffer compactedSizeBuffer;
