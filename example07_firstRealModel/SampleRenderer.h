@@ -2,16 +2,17 @@
 
 #include "CUDABuffer.h"
 #include "LaunchParams.h"
-#include "TriangleMesh.h"
 #include "Camera.h"
 
 #include <cuda_runtime.h> // need for cudaDeviceProp
 #include <optix_stubs.h>  // needed for the rest
 
+struct Model;
+
 class SampleRenderer {
 public:
     // performs all setup, including initializing optix, creates module, pipeline, programs, SBT, etc.
-    SampleRenderer(const std::vector<TriangleMesh>& meshes);
+    SampleRenderer(const Model* model);
 
     // render one frame
     void render();
@@ -95,7 +96,7 @@ protected:
     Camera lastSetCamera{};
     
     /*! the model we are going to trace rays against */
-    std::vector<TriangleMesh> meshes;
+    const Model* model;
     /*! one buffer per input mesh */
     std::vector<CUDABuffer> vertexBuffer;
     /*! one buffer per input mesh */

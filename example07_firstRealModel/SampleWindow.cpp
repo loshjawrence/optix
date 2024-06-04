@@ -3,8 +3,10 @@
 #include <assert.h>
 #include <spdlog/spdlog.h>
 
+#include "Camera.h"
+
 SampleWindow::SampleWindow(const std::string& title,
-			 const std::vector<TriangleMesh>& model,
+			 const Model* model,
 			 const Camera& camera,
 			 const float worldScale)
   : GLFCameraWindow(title,camera.from,camera.at,camera.up,worldScale),

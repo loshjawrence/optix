@@ -127,25 +127,13 @@ if(usePrecompiledHeaders)
 endif()
 
 # Generated files
+set(GENERATED_H_FILE CMakeGenerated.h)
 configure_file(
-  ${CMAKE_SOURCE_DIR}/config/CMakeGenerated.h.in
-  generated/CMakeGenerated.h # NOTE: This will get generated in build/generated
+  ${CMAKE_SOURCE_DIR}/config/${GENERATED_H_FILE}.in
+  ${GENERATED_H_FILE} # NOTE: This will get generated in build/generated
   @ONLY # If @ONLY is specified, only variables of the form @VAR@ will be replaced and ${VAR} will be ignored. This is useful for configuring scripts that use ${VAR}.
 )
-#############################################################
-##################   PRE_BUILD   ###########################
-#############################################################
-# NOTE: build step can be PRE_BUILD PRE_LINK or POST_BUILD
-list(
-  APPEND PreBuildFilesToCopyToProjectSrc
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/CMakeGenerated.h
-)
-foreach(_file ${PreBuildFilesToCopyToProjectSrc})
-  add_custom_command(
-    TARGET ${SUBPROJECT_NAME} PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${_file} ${CMAKE_CURRENT_SOURCE_DIR}
-  )
-endforeach()
+file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/${GENERATED_H_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/${GENERATED_H_FILE})
 
 #############################################################
 ##################   POST_BUILD   ###########################

@@ -10,3 +10,4 @@ const std::filesystem::path g_projectRootPath = "@CMAKE_SOURCE_DIR@";
 const std::filesystem::path g_subprojectRootPath = "@CMAKE_CURRENT_SOURCE_DIR@";
 const std::filesystem::path g_optixIRPath = g_subprojectRootPath / "optixir";
 const std::filesystem::path g_debugImagesPath = g_projectRootPath / "debugImages";
+const std::filesystem::path g_modelsPath = g_projectRootPath / "assets/models";

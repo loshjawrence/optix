@@ -2,18 +2,17 @@
 
 #include "GLFCameraWindow.h"
 #include "SampleRenderer.h"
-#include "TriangleMesh.h"
-#include "Camera.h"
-
 #include <vector>
 
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 
+struct Model;
+struct Camera;
 
 struct SampleWindow : public GLFCameraWindow {
     SampleWindow(const std::string& title,
-                 const std::vector<TriangleMesh>& model,
+                 const Model* model,
                  const Camera& camera,
                  const float worldScale);
 

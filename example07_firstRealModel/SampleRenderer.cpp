@@ -25,6 +25,8 @@ namespace fs = std::filesystem;
 #include "IOUtil.h"
 #include "OptixUtil.h"
 #include "TriangleMeshSBTData.h"
+#include "Model.h"
+#include "TriangleMesh.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -60,8 +62,8 @@ static void printSuccess(
     spdlog::info("{} successfully ran", sl.function_name());
 }
 
-SampleRenderer::SampleRenderer(const std::vector<TriangleMesh>& meshes)
-    : meshes(meshes) {
+SampleRenderer::SampleRenderer(const Model* model)
+    : model(model) {
     initOptix();
 
     resizeFramebuffer({1200, 1024});
@@ -263,11 +265,11 @@ void SampleRenderer::buildSBT() {
 
     // HITGROUP RECORDS
     std::vector<HitgroupRecord> hitgroupRecords;
-    for (int meshID = 0; meshID < meshes.size(); meshID++) {
+    for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
         HitgroupRecord rec;
         // all meshes use the same code, so all same hit group
         optixCheck(optixSbtRecordPackHeader(hitgroupPGs[0], &rec));
-        rec.data.diffuse = meshes[meshID].diffuse;
+        rec.data.diffuse = model->meshes[meshID]->diffuse;
         rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
         rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
         hitgroupRecords.push_back(rec);
@@ -282,22 +284,22 @@ void SampleRenderer::buildSBT() {
 
 OptixTraversableHandle SampleRenderer::buildAccel() {
 
-    vertexBuffer.resize(meshes.size());
-    indexBuffer.resize(meshes.size());
+    vertexBuffer.resize(model->meshes.size());
+    indexBuffer.resize(model->meshes.size());
 
 
     // triangle inputs
-    std::vector<OptixBuildInput> triangleInput(meshes.size());
-    std::vector<CUdeviceptr> d_vertices(meshes.size());
-    std::vector<CUdeviceptr> d_indices(meshes.size());
-    std::vector<uint32_t> triangleInputFlags(meshes.size());
+    std::vector<OptixBuildInput> triangleInput(model->meshes.size());
+    std::vector<CUdeviceptr> d_vertices(model->meshes.size());
+    std::vector<CUdeviceptr> d_indices(model->meshes.size());
+    std::vector<uint32_t> triangleInputFlags(model->meshes.size());
     OptixTraversableHandle asHandle{};
 
-    for (int meshID = 0; meshID < meshes.size(); meshID++) {
-        // upload the model to the device: the builder
-        TriangleMesh& model = meshes[meshID];
-        vertexBuffer[meshID].alloc_and_upload(model.vertex);
-        indexBuffer[meshID].alloc_and_upload(model.index);
+    for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
+        // upload the model->to the device: the builder
+        TriangleMesh& mesh = *(model->meshes[meshID]);
+        vertexBuffer[meshID].alloc_and_upload(mesh.vertex);
+        indexBuffer[meshID].alloc_and_upload(mesh.index);
 
         triangleInput[meshID] = {};
         triangleInput[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -311,14 +313,14 @@ OptixTraversableHandle SampleRenderer::buildAccel() {
             OPTIX_VERTEX_FORMAT_FLOAT3;
         triangleInput[meshID].triangleArray.vertexStrideInBytes = sizeof(glm::vec3);
         triangleInput[meshID].triangleArray.numVertices =
-            (int)model.vertex.size();
+            (int)mesh.vertex.size();
         triangleInput[meshID].triangleArray.vertexBuffers = &d_vertices[meshID];
 
         triangleInput[meshID].triangleArray.indexFormat =
             OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
         triangleInput[meshID].triangleArray.indexStrideInBytes = sizeof(glm::ivec3);
         triangleInput[meshID].triangleArray.numIndexTriplets =
-            (int)model.index.size();
+            (int)mesh.index.size();
         triangleInput[meshID].triangleArray.indexBuffer = d_indices[meshID];
 
         triangleInputFlags[meshID] = 0;
@@ -346,7 +348,7 @@ OptixTraversableHandle SampleRenderer::buildAccel() {
         optixAccelComputeMemoryUsage(optixContext,
                                      &accelOptions,
                                      triangleInput.data(),
-                                     (int)meshes.size(), // num_build_inputs
+                                     (int)model->meshes.size(), // num_build_inputs
                                      &blasBufferSizes));
 
     // ==================================================================
@@ -374,7 +376,7 @@ OptixTraversableHandle SampleRenderer::buildAccel() {
                                 /* stream */ 0,
                                 &accelOptions,
                                 triangleInput.data(),
-                                (int)meshes.size(),
+                                (int)model->meshes.size(),
                                 tempBuffer.d_pointer(),
                                 tempBuffer.byteSize(),
 
