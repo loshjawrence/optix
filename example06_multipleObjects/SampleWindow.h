@@ -13,7 +13,7 @@
 
 struct SampleWindow : public GLFCameraWindow {
     SampleWindow(const std::string& title,
-                 const TriangleMesh& model,
+                 const std::vector<TriangleMesh>& model,
                  const Camera& camera,
                  const float worldScale);
 

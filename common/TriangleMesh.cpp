@@ -1,13 +1,19 @@
 #include "TriangleMesh.h"
 
+#define GLM_FORCE_CTOR_INIT GLM_CTOR_INITIALIZER_LIST
 #include <array>
 #include <glm/gtc/matrix_transform.hpp>
 
 void TriangleMesh::addCube(glm::vec3 center, glm::vec3 size) {
     //! add aligned cube with front-lower-left corner and size
+    const glm::mat4 identity = glm::mat4(1.0f);
 
-    glm::mat4 xfm = glm::scale(glm::identity<glm::mat4>(), size);
-    xfm = glm::translate(xfm, center - (0.5f * size));
+    const glm::vec3 halfSize = 0.5f * size;
+    const glm::vec3 translate = center - halfSize;
+
+    // TRS in that order (even though the typical matrix transform math would suggest translate(rotate(scale(..)))
+    glm::mat4 xfm = glm::translate(identity, translate);
+    xfm = glm::scale(xfm, size);
     addUnitCube(xfm);
 }
 

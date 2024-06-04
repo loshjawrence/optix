@@ -7,11 +7,14 @@
 
 int main() {
     try {
-      TriangleMesh model;
+      std::vector<TriangleMesh> model(2);
+
       // 100x100 thin ground plane
-      model.addCube(glm::vec3(0.f,-1.5f,0.f),glm::vec3(10.f,.1f,10.f));
+      model[0].color = glm::vec3(1.f, 0.f, 0.f);
+      model[0].addCube(glm::vec3(0.f,-1.5f, 0.f),glm::vec3(10.f,.1f,10.f));
       // a unit cube centered on top of that
-      model.addCube(glm::vec3(0.f,0.f,0.f),glm::vec3(2.f,2.f,2.f));
+      model[1].color = glm::vec3(0.f,1.f,1.f);
+      model[1].addCube(glm::vec3(0.f,0.f,0.f),glm::vec3(2.f,2.f,2.f));
 
       Camera camera = { /*from*/glm::vec3(-10.f,2.f,-12.f),
                         /* at */glm::vec3(0.f,0.f,0.f),
