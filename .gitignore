@@ -10,6 +10,7 @@ CMakeGenerated.h
 # build dirs
 .vs
 out/
+build/
 
 # where to print the framebuffer
 debugImages/
@@ -25,7 +26,6 @@ compile_commands.json
 *.slo
 *.lo
 *.o
-*.obj
 
 # Precompiled Headers
 *.gch
