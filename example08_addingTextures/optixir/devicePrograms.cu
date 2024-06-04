@@ -36,6 +36,9 @@ static __device__ float3 asFloat3(glm::vec3 input) {
 static __device__ glm::vec3 asVec3(float3 input) {
     return glm::vec3{input.x, input.y, input.z};
 }
+static __device__ glm::vec3 asVec3(float4 input) {
+    return glm::vec3{input.x, input.y, input.z};
+}
 
 //------------------------------------------------------------------------------
 // closest hit and anyhit programs for radiance-type rays.
@@ -59,20 +62,43 @@ extern "C" __global__ void __closesthit__radiance() {
     const TriangleMeshSBTData& sbtData =
         *reinterpret_cast<const TriangleMeshSBTData*>(optixGetSbtDataPointer());
 
-    // compute normal
+    // gather some basic hit info
     const int primID = optixGetPrimitiveIndex();
     const glm::ivec3 index = sbtData.index[primID];
-    const glm::vec3& A = sbtData.vertex[index.x];
-    const glm::vec3& B = sbtData.vertex[index.y];
-    const glm::vec3& C = sbtData.vertex[index.z];
-    const glm::vec3& geomNormal = glm::normalize(glm::cross(B-A, C-A));
+    const float u = optixGetTriangleBarycentrics().x;
+    const float v = optixGetTriangleBarycentrics().y;
+
+    // compute normal
+    glm::vec3 N{};
+    if (sbtData.normal) {
+        // barycentric weighting on the 3 vertex normals
+        const glm::vec3 shadingNormal = ((1.0f - u - v) * sbtData.normal[index.x]) +
+            (u * sbtData.normal[index.y]) + (v * sbtData.normal[index.z]);
+        N = shadingNormal;
+    } else {
+		const glm::vec3& A = sbtData.vertex[index.x];
+		const glm::vec3& B = sbtData.vertex[index.y];
+		const glm::vec3& C = sbtData.vertex[index.z];
+		const glm::vec3& geomNormal = glm::normalize(glm::cross(B - A, C - A));
+        N = geomNormal;
+    }
+
+    // compute diffuse
+    glm::vec3 diffuseColor = sbtData.diffuse;
+    if (sbtData.hasTexture && sbtData.texcoord)
+    {
+        const glm::vec2 tc = ((1.0f - u - v) * sbtData.texcoord[index.x]) +
+            (u * sbtData.texcoord[index.y]) + (v * sbtData.texcoord[index.z]);
+        float4 fromTexture = tex2D<float4>(sbtData.texture, tc.x, tc.y);
+        diffuseColor *= asVec3(fromTexture);
+    }
 
     // compute lambertian coeff
     const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
-    const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, geomNormal));
+    const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, N));
 
     glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = cosDN * sbtData.diffuse;
+    prd = cosDN * diffuseColor;
 }
 
 extern "C" __global__ void
@@ -118,9 +144,9 @@ extern "C" __global__ void __raygen__renderFrame() {
                            glm::vec2(optixLaunchParams.frame.size));
 
     // generate ray direction
-    glm::vec3 rayDir =
-        glm::normalize(camera.direction + ((screen.x - 0.5f) * camera.horizontal) +
-                  ((screen.y - 0.5f) * camera.vertical));
+    glm::vec3 rayDir = glm::normalize(camera.direction +
+                                      ((screen.x - 0.5f) * camera.horizontal) +
+                                      ((screen.y - 0.5f) * camera.vertical));
 
     const float tmin = 0.0f;
     const float tmax = 1e20f;

@@ -45,6 +45,7 @@ protected:
 
     /*! assembles the full pipeline of all programs */
     void createPipeline();
+    void createTextures();
 
     /*! constructs the shader binding table */
     void buildSBT();
@@ -99,8 +100,14 @@ protected:
     const Model* model;
     /*! one buffer per input mesh */
     std::vector<CUDABuffer> vertexBuffer;
-    /*! one buffer per input mesh */
+    std::vector<CUDABuffer> normalBuffer;
+    std::vector<CUDABuffer> texcoordBuffer;
     std::vector<CUDABuffer> indexBuffer;
+
     //! buffer that keeps the (final, compacted) accel structure
     CUDABuffer asBuffer;
+
+    // one texture per object and pixel array per used texture
+    std::vector<cudaArray_t> textureArrays;
+    std::vector<cudaTextureObject_t> textureObjects;
 };

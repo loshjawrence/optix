@@ -23,10 +23,11 @@ namespace fs = std::filesystem;
 #include "CMakeGenerated.h"
 #include "CudaUtil.h"
 #include "IOUtil.h"
-#include "OptixUtil.h"
-#include "TriangleMeshSBTData.h"
 #include "Model.h"
+#include "OptixUtil.h"
 #include "TriangleMesh.h"
+#include "TriangleMeshSBTData.h"
+#include "Texture.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -77,10 +78,189 @@ SampleRenderer::SampleRenderer(const Model* model)
     launchParams.traversable = buildAccel();
 
     createPipeline();
+    createTextures();
     buildSBT();
 
     launchParamsBuffer.alloc(sizeof(launchParams));
     printSuccess();
+}
+void SampleRenderer::createTextures() {
+    int numTextures = (int)model->textures.size();
+    textureArrays.resize(numTextures);
+    textureObjects.resize(numTextures);
+    for (int textureID = 0; textureID < numTextures; ++textureID)
+    {
+        auto texture = model->textures[textureID];
+
+        cudaChannelFormatDesc channel_desc{};
+        int width = texture->resolution.x;
+        int height = texture->resolution.y;
+        int numComponents = 4;
+        int pitch = width * numComponents * sizeof(uint8_t);
+        channel_desc = cudaCreateChannelDesc<uchar4>();
+
+        cudaArray_t& pixelArray = textureArrays[textureID];
+        cudaCheck(cudaMallocArray(&pixelArray,
+                                  &channel_desc,
+                                  width,
+                                  height));
+
+        int wOffset{};
+        int hOffset{};
+        cudaCheck(cudaMemcpy2DToArray(pixelArray,
+                                      wOffset,
+                                      hOffset,
+                                      texture->pixel,
+                                      pitch,
+                                      pitch,
+                                      height,
+                                      cudaMemcpyHostToDevice));
+
+        cudaResourceDesc res_desc{};
+        res_desc.resType = cudaResourceTypeArray;
+        res_desc.res.array.array = pixelArray;
+
+        cudaTextureDesc tex_desc{};
+        tex_desc.addressMode[0] = cudaAddressModeWrap;
+        tex_desc.addressMode[1] = cudaAddressModeWrap;
+        tex_desc.filterMode = cudaFilterModeLinear;
+        tex_desc.readMode = cudaReadModeNormalizedFloat;
+        tex_desc.normalizedCoords = 1;
+        tex_desc.maxAnisotropy = 1;
+        tex_desc.maxMipmapLevelClamp = 99;
+        tex_desc.minMipmapLevelClamp = 0;
+        tex_desc.mipmapFilterMode = cudaFilterModePoint;
+        tex_desc.borderColor[0] = 1.0f;
+        tex_desc.sRGB = 0;
+
+        cudaTextureObject_t cuda_tex{};
+        cudaCheck(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+        textureObjects[textureID] = cuda_tex;
+    }
+}
+
+OptixTraversableHandle SampleRenderer::buildAccel() {
+    const int numMeshes = (int)model->meshes.size();
+    vertexBuffer.resize(numMeshes);
+    normalBuffer.resize(numMeshes);
+    texcoordBuffer.resize(numMeshes);
+    indexBuffer.resize(numMeshes);
+
+    OptixTraversableHandle asHandle{};
+
+    // triangle inputs
+    std::vector<OptixBuildInput> triangleInput(numMeshes);
+    std::vector<CUdeviceptr> d_vertices(numMeshes);
+    std::vector<CUdeviceptr> d_indices(numMeshes);
+    std::vector<uint32_t> triangleInputFlags(numMeshes);
+
+    for (int meshID = 0; meshID < numMeshes; meshID++) {
+        // upload the model to the device: the builder
+        TriangleMesh& mesh = *(model->meshes[meshID]);
+        vertexBuffer[meshID].alloc_and_upload(mesh.vertex);
+        indexBuffer[meshID].alloc_and_upload(mesh.index);
+
+        triangleInput[meshID] = {};
+        triangleInput[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+
+        // create local variables, because we need a *pointer* to the
+        // device pointers
+        d_vertices[meshID] = vertexBuffer[meshID].d_pointer();
+        d_indices[meshID] = indexBuffer[meshID].d_pointer();
+
+        triangleInput[meshID].triangleArray.vertexFormat =
+            OPTIX_VERTEX_FORMAT_FLOAT3;
+        triangleInput[meshID].triangleArray.vertexStrideInBytes =
+            sizeof(glm::vec3);
+        triangleInput[meshID].triangleArray.numVertices =
+            (int)mesh.vertex.size();
+        triangleInput[meshID].triangleArray.vertexBuffers = &d_vertices[meshID];
+
+        triangleInput[meshID].triangleArray.indexFormat =
+            OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+        triangleInput[meshID].triangleArray.indexStrideInBytes =
+            sizeof(glm::ivec3);
+        triangleInput[meshID].triangleArray.numIndexTriplets =
+            (int)mesh.index.size();
+        triangleInput[meshID].triangleArray.indexBuffer = d_indices[meshID];
+
+        triangleInputFlags[meshID] = 0;
+
+        // in this example we have one SBT entry, and no per-primitive
+        // materials:
+        triangleInput[meshID].triangleArray.flags = &triangleInputFlags[meshID];
+        triangleInput[meshID].triangleArray.numSbtRecords = 1;
+        triangleInput[meshID].triangleArray.sbtIndexOffsetBuffer = 0;
+        triangleInput[meshID].triangleArray.sbtIndexOffsetSizeInBytes = 0;
+        triangleInput[meshID].triangleArray.sbtIndexOffsetStrideInBytes = 0;
+    }
+
+    // BLAS setup
+    OptixAccelBuildOptions accelOptions = {};
+    accelOptions.buildFlags =
+        OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+    accelOptions.motionOptions.numKeys = 1;
+    accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    OptixAccelBufferSizes blasBufferSizes;
+    optixCheck(optixAccelComputeMemoryUsage(
+        optixContext,
+        &accelOptions,
+        triangleInput.data(),
+        numMeshes, // num_build_inputs
+        &blasBufferSizes));
+
+    // prepare compaction
+    CUDABuffer compactedSizeBuffer;
+    compactedSizeBuffer.alloc(sizeof(uint64_t));
+
+    OptixAccelEmitDesc emitDesc;
+    emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+    emitDesc.result = compactedSizeBuffer.d_pointer();
+
+    // execute build (main stage)
+    CUDABuffer tempBuffer;
+    tempBuffer.alloc(blasBufferSizes.tempSizeInBytes);
+
+    CUDABuffer outputBuffer;
+    outputBuffer.alloc(blasBufferSizes.outputSizeInBytes);
+
+    optixCheck(optixAccelBuild(optixContext,
+                               /* stream */ 0,
+                               &accelOptions,
+                               triangleInput.data(),
+                               numMeshes,
+                               tempBuffer.d_pointer(),
+                               tempBuffer.byteSize(),
+
+                               outputBuffer.d_pointer(),
+                               outputBuffer.byteSize(),
+
+                               &asHandle,
+
+                               &emitDesc,
+                               1));
+    cudaSyncCheck();
+
+    // perform compaction
+    uint64_t compactedSize;
+    compactedSizeBuffer.download(&compactedSize, 1);
+
+    asBuffer.alloc(compactedSize);
+    optixCheck(optixAccelCompact(optixContext,
+                                 /*stream:*/ 0,
+                                 asHandle,
+                                 asBuffer.d_pointer(),
+                                 asBuffer.byteSize(),
+                                 &asHandle));
+    cudaSyncCheck();
+
+    // clean up
+    outputBuffer.free(); // << the UNcompacted, temporary output buffer
+    tempBuffer.free();
+    compactedSizeBuffer.free();
+
+    return asHandle;
 }
 
 void SampleRenderer::createContext() {
@@ -266,12 +446,21 @@ void SampleRenderer::buildSBT() {
     // HITGROUP RECORDS
     std::vector<HitgroupRecord> hitgroupRecords;
     for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
+        auto mesh = model->meshes[meshID];
         HitgroupRecord rec;
         // all meshes use the same code, so all same hit group
         optixCheck(optixSbtRecordPackHeader(hitgroupPGs[0], &rec));
-        rec.data.diffuse = model->meshes[meshID]->diffuse;
-        rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
+        rec.data.diffuse = mesh->diffuse;
+        if (mesh->diffuseTextureID >= 0) {
+            rec.data.hasTexture = true;
+            rec.data.texture = textureObjects[mesh->diffuseTextureID];
+        } else {
+            rec.data.hasTexture = false;
+        }
         rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
+        rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
+        rec.data.normal = (glm::vec3*)normalBuffer[meshID].d_pointer();
+        rec.data.texcoord = (glm::vec2*)texcoordBuffer[meshID].d_pointer();
         hitgroupRecords.push_back(rec);
     }
     hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
@@ -280,138 +469,6 @@ void SampleRenderer::buildSBT() {
     sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
 
     printSuccess();
-}
-
-OptixTraversableHandle SampleRenderer::buildAccel() {
-
-    vertexBuffer.resize(model->meshes.size());
-    indexBuffer.resize(model->meshes.size());
-
-
-    // triangle inputs
-    std::vector<OptixBuildInput> triangleInput(model->meshes.size());
-    std::vector<CUdeviceptr> d_vertices(model->meshes.size());
-    std::vector<CUdeviceptr> d_indices(model->meshes.size());
-    std::vector<uint32_t> triangleInputFlags(model->meshes.size());
-    OptixTraversableHandle asHandle{};
-
-    for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
-        // upload the model->to the device: the builder
-        TriangleMesh& mesh = *(model->meshes[meshID]);
-        vertexBuffer[meshID].alloc_and_upload(mesh.vertex);
-        indexBuffer[meshID].alloc_and_upload(mesh.index);
-
-        triangleInput[meshID] = {};
-        triangleInput[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-
-        // create local variables, because we need a *pointer* to the
-        // device pointers
-        d_vertices[meshID] = vertexBuffer[meshID].d_pointer();
-        d_indices[meshID] = indexBuffer[meshID].d_pointer();
-
-        triangleInput[meshID].triangleArray.vertexFormat =
-            OPTIX_VERTEX_FORMAT_FLOAT3;
-        triangleInput[meshID].triangleArray.vertexStrideInBytes = sizeof(glm::vec3);
-        triangleInput[meshID].triangleArray.numVertices =
-            (int)mesh.vertex.size();
-        triangleInput[meshID].triangleArray.vertexBuffers = &d_vertices[meshID];
-
-        triangleInput[meshID].triangleArray.indexFormat =
-            OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-        triangleInput[meshID].triangleArray.indexStrideInBytes = sizeof(glm::ivec3);
-        triangleInput[meshID].triangleArray.numIndexTriplets =
-            (int)mesh.index.size();
-        triangleInput[meshID].triangleArray.indexBuffer = d_indices[meshID];
-
-        triangleInputFlags[meshID] = 0;
-
-        // in this example we have one SBT entry, and no per-primitive
-        // materials:
-        triangleInput[meshID].triangleArray.flags = &triangleInputFlags[meshID];
-        triangleInput[meshID].triangleArray.numSbtRecords = 1;
-        triangleInput[meshID].triangleArray.sbtIndexOffsetBuffer = 0;
-        triangleInput[meshID].triangleArray.sbtIndexOffsetSizeInBytes = 0;
-        triangleInput[meshID].triangleArray.sbtIndexOffsetStrideInBytes = 0;
-    }
-    // ==================================================================
-    // BLAS setup
-    // ==================================================================
-
-    OptixAccelBuildOptions accelOptions = {};
-    accelOptions.buildFlags =
-        OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-    accelOptions.motionOptions.numKeys = 1;
-    accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-    OptixAccelBufferSizes blasBufferSizes;
-    optixCheck(
-        optixAccelComputeMemoryUsage(optixContext,
-                                     &accelOptions,
-                                     triangleInput.data(),
-                                     (int)model->meshes.size(), // num_build_inputs
-                                     &blasBufferSizes));
-
-    // ==================================================================
-    // prepare compaction
-    // ==================================================================
-
-    CUDABuffer compactedSizeBuffer;
-    compactedSizeBuffer.alloc(sizeof(uint64_t));
-
-    OptixAccelEmitDesc emitDesc;
-    emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-    emitDesc.result = compactedSizeBuffer.d_pointer();
-
-    // ==================================================================
-    // execute build (main stage)
-    // ==================================================================
-
-    CUDABuffer tempBuffer;
-    tempBuffer.alloc(blasBufferSizes.tempSizeInBytes);
-
-    CUDABuffer outputBuffer;
-    outputBuffer.alloc(blasBufferSizes.outputSizeInBytes);
-
-    optixCheck(optixAccelBuild(optixContext,
-                                /* stream */ 0,
-                                &accelOptions,
-                                triangleInput.data(),
-                                (int)model->meshes.size(),
-                                tempBuffer.d_pointer(),
-                                tempBuffer.byteSize(),
-
-                                outputBuffer.d_pointer(),
-                                outputBuffer.byteSize(),
-
-                                &asHandle,
-
-                                &emitDesc,
-                                1));
-    cudaSyncCheck();
-
-    // ==================================================================
-    // perform compaction
-    // ==================================================================
-    uint64_t compactedSize;
-    compactedSizeBuffer.download(&compactedSize, 1);
-
-    asBuffer.alloc(compactedSize);
-    optixCheck(optixAccelCompact(optixContext,
-                                  /*stream:*/ 0,
-                                  asHandle,
-                                  asBuffer.d_pointer(),
-                                  asBuffer.byteSize(),
-                                  &asHandle));
-    cudaSyncCheck();
-
-    // ==================================================================
-    // aaaaaand .... clean up
-    // ==================================================================
-    outputBuffer.free(); // << the UNcompacted, temporary output buffer
-    tempBuffer.free();
-    compactedSizeBuffer.free();
-
-    return asHandle;
 }
 
 void SampleRenderer::render() {
