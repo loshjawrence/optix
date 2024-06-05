@@ -75,7 +75,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const glm::vec3& A = sbtData.vertex[index.x];
     const glm::vec3& B = sbtData.vertex[index.y];
     const glm::vec3& C = sbtData.vertex[index.z];
-    glm::vec3 Ng = normalize(glm::cross(B - A, C - A));
+    glm::vec3 Ng = glm::cross(B - A, C - A);
     // barycentric weighting on the 3 vertex normals
     glm::vec3 Ns = sbtData.normal ? ((1.0f - u - v) * sbtData.normal[index.x]) +
             (u * sbtData.normal[index.y]) + (v * sbtData.normal[index.z])
@@ -86,7 +86,7 @@ extern "C" __global__ void __closesthit__radiance() {
     if (dot(rayDir, Ng) > 0.0f) {
         Ng = -Ng;
     }
-    Ng = normalize(Ns);
+    Ng = normalize(Ng);
     if (dot(Ng, Ns) < 0.0f) {
         Ns -= 2.0f * dot(Ng, Ns) * Ng;
     }
@@ -105,7 +105,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const glm::vec3 surfPos = (1.f - u - v) * sbtData.vertex[index.x] +
         u * sbtData.vertex[index.y] + v * sbtData.vertex[index.z];
     const glm::vec3 lightPos(-907.108f, 2205.875f, -400.0267f);
-    const glm::vec3 lightDir = normalize(lightPos - surfPos);
+    const glm::vec3 lightDir = lightPos - surfPos;
 
     // trace shadow ray
     glm::vec3 lightVisibility{};
@@ -133,7 +133,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const float cosDN = 0.1f + 0.8f * std::fabsf(dot(rayDir, Ns));
 
     glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = cosDN * diffuseColor;
+    prd = (.1f + (.2f + .8f*lightVisibility) * cosDN) * diffuseColor;
 }
 
 extern "C" __global__ void
