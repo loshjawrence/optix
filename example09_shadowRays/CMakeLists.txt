@@ -151,4 +151,3 @@ add_custom_command(TARGET ${SUBPROJECT_NAME} POST_BUILD
 				   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${OPTIXIR_TARGET}.dir/optixir ${CMAKE_CURRENT_SOURCE_DIR}/optixir
                    COMMENT "Copying .optixir files"
 )
-#file(COPY ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${OPTIXIR_TARGET}.dir/optixir DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/optixir)
