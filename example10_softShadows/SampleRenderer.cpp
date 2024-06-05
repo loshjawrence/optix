@@ -29,6 +29,7 @@ namespace fs = std::filesystem;
 #include "TriangleMesh.h"
 #include "TriangleMeshSBTData.h"
 #include "EnumRayType.h"
+#include "QuadLight.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -64,9 +65,14 @@ static void printSuccess(
     spdlog::info("{} successfully ran", sl.function_name());
 }
 
-SampleRenderer::SampleRenderer(const Model* model)
+SampleRenderer::SampleRenderer(const Model* model, const QuadLight& light)
     : model(model) {
     initOptix();
+
+    launchParams.light.origin = light.origin;
+    launchParams.light.du     = light.du;
+    launchParams.light.dv     = light.dv;
+    launchParams.light.power  = light.power;
 
     resizeFramebuffer({1200, 1024});
 

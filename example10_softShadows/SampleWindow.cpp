@@ -8,9 +8,10 @@
 SampleWindow::SampleWindow(const std::string& title,
 			 const Model* model,
 			 const Camera& camera,
+			 const QuadLight& light,
 			 const float worldScale)
   : GLFCameraWindow(title,camera.from,camera.at,camera.up,worldScale),
-	sample(model)
+	sample(model, light)
 {
 }
 

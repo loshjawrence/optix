@@ -9,11 +9,13 @@
 
 struct Model;
 struct Camera;
+struct light;
 
 struct SampleWindow : public GLFCameraWindow {
     SampleWindow(const std::string& title,
                  const Model* model,
                  const Camera& camera,
+                 const QuadLight& light,
                  const float worldScale);
 
     virtual void render() override;

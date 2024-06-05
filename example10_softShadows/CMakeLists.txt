@@ -66,6 +66,7 @@ file(
     ${CMAKE_SOURCE_DIR}/common/Box.*
     ${CMAKE_SOURCE_DIR}/common/Texture.*
     ${CMAKE_SOURCE_DIR}/common/QuadLight.*
+    ${CMAKE_SOURCE_DIR}/common/Random.*
 )
 
 file(

@@ -8,11 +8,12 @@
 #include <optix_stubs.h>  // needed for the rest
 
 struct Model;
+struct QuadLight;
 
 class SampleRenderer {
 public:
     // performs all setup, including initializing optix, creates module, pipeline, programs, SBT, etc.
-    SampleRenderer(const Model* model);
+    SampleRenderer(const Model* model, const QuadLight& light);
 
     // render one frame
     void render();

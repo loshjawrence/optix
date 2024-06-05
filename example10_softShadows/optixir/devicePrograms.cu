@@ -1,8 +1,19 @@
 #include <optix_device.h>
 
-#include "LaunchParams.h"
-#include "TriangleMeshSBTData.h"
 #include "EnumRayType.h"
+#include "LaunchParams.h"
+#include "Random.h"
+#include "TriangleMeshSBTData.h"
+
+#define NUM_LIGHT_SAMPLES 1
+#define NUM_PIXEL_SAMPLES 16
+
+using Random = LCG<16>;
+
+struct PRD {
+    Random random{};
+    glm::vec3 pixelColor{};
+};
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
@@ -64,6 +75,7 @@ extern "C" __global__ void __closesthit__shadow() {
 extern "C" __global__ void __closesthit__radiance() {
     const TriangleMeshSBTData& sbtData =
         *reinterpret_cast<const TriangleMeshSBTData*>(optixGetSbtDataPointer());
+    PRD& prd = *getPerRayData<PRD>();
 
     // gather some basic hit info
     const int primID = optixGetPrimitiveIndex();
@@ -103,40 +115,58 @@ extern "C" __global__ void __closesthit__radiance() {
         diffuseColor *= asVec3(fromTexture);
     }
 
+    // start with some ambient term
+    glm::vec3 pixelColor =
+        (0.1f + 0.2f * fabsf(dot(Ns, rayDir))) * diffuseColor;
+
     // compute shadow
     const glm::vec3 surfPos = (1.f - u - v) * sbtData.vertex[index.x] +
         u * sbtData.vertex[index.y] + v * sbtData.vertex[index.z];
-    const glm::vec3 lightPos(-907.108f, 2205.875f, -400.0267f);
-    // NOTE: by not normalizing you can set tmax to 1 instead of normalizing and setting tmax to distance to light
-    const glm::vec3 lightDir = lightPos - surfPos;
 
-    // trace shadow ray
-    glm::vec3 lightVisibility{};
-    uint32_t u0, u1;
-    packPointer(&lightVisibility, u0, u1);
-    optixTrace(optixLaunchParams.traversable,
-               asFloat3(surfPos + 1e-3f * Ng),
-               asFloat3(lightDir),
-               1e-3f,      // tmin
-               1.f-1e-3f,  // tmax
-               0.0f,       // rayTime
-               OptixVisibilityMask( 255 ),
-               // For shadow rays: skip any/closest hit shaders and terminate on first
-               // intersection with anything. The miss shader is used to mark if the
-               // light was visible.
-               OPTIX_RAY_FLAG_DISABLE_ANYHIT
-               | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT
-               | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
-               SHADOW_RAY_TYPE, // SBT offset
-               RAY_TYPE_COUNT, // SBT stride
-               SHADOW_RAY_TYPE, // missSBTIndex
-               u0, u1 );
+    const int numLightSamples = NUM_LIGHT_SAMPLES;
+    for (int lightSampleID = 0; lightSampleID < numLightSamples;
+         ++lightSampleID) {
+        const glm::vec3 lightPos = optixLaunchParams.light.origin +
+            prd.random() * optixLaunchParams.light.du +
+            prd.random() * optixLaunchParams.light.dv;
 
-    // compute lambertian coeff
-    const float cosDN = 0.1f + 0.8f * std::fabsf(dot(rayDir, Ns));
+        glm::vec3 lightDir = lightPos - surfPos;
+        float lightDist = glm::length(lightDir);
+        lightDir = normalize(lightDir);
 
-    glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = (.1f + (.2f + .8f*lightVisibility) * cosDN) * diffuseColor;
+        // trace shadow ray
+        const float NdotL = dot(lightDir, Ns);
+        if (NdotL < 0.0f) {
+            continue;
+        }
+
+        // correct side of surface hemisphere, light possibly visible.
+        glm::vec3 lightVisibility{};
+        uint32_t u0, u1;
+        packPointer(&lightVisibility, u0, u1);
+        optixTrace(
+            optixLaunchParams.traversable,
+            asFloat3(surfPos + 1e-3f * Ng),
+            asFloat3(lightDir),
+            1e-3f,                     // tmin
+            lightDist * (1.f - 1e-3f), // tmax
+            0.0f,                      // rayTime
+            OptixVisibilityMask(255),
+            // For shadow rays: skip any/closest hit shaders and terminate on first
+            // intersection with anything. The miss shader is used to mark if the
+            // light was visible.
+            OPTIX_RAY_FLAG_DISABLE_ANYHIT |
+                OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT |
+                OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+            SHADOW_RAY_TYPE, // SBT offset
+            RAY_TYPE_COUNT,  // SBT stride
+            SHADOW_RAY_TYPE, // missSBTIndex
+            u0,
+            u1);
+        pixelColor += lightVisibility * optixLaunchParams.light.power *
+            diffuseColor * NdotL / (lightDist * lightDist * numLightSamples);
+    }
+    prd.pixelColor = pixelColor;
 }
 
 extern "C" __global__ void
@@ -156,8 +186,8 @@ __anyhit__shadow() { /*! for this simple example, this will remain empty */
 // ------------------------------------------------------------------------------
 
 extern "C" __global__ void __miss__radiance() {
-    glm::vec3& prd = *getPerRayData<glm::vec3>();
-    prd = glm::vec3(1.0f);
+    PRD& prd = *getPerRayData<PRD>();
+    prd.pixelColor = glm::vec3(1.0f);
 }
 
 extern "C" __global__ void __miss__shadow() {
@@ -172,49 +202,56 @@ extern "C" __global__ void __raygen__renderFrame() {
     // compute a test pattern based on pixel ID
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
-
+    const int accumID = optixLaunchParams.frame.accumID;
     const auto& camera = optixLaunchParams.camera;
 
-    // one per-ray data for this example.
-    // what we intitialize it to won't matter,
-    // since this value will be overwritten by either the miss or hit program, anyway.
-    glm::vec3 pixelColorPRD = glm::vec3(0.0f);
+    PRD prd;
+    prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
+                    iy + accumID * optixLaunchParams.frame.size.y);
+    prd.pixelColor = glm::vec3(0.f);
 
     // store the u64 pointer to the pixelColorPRD var on our stack
     // in 2 u32s so that those u32s can be passed to optixTrace
     // and downstream calls can manipulate pixelColorPRD
     uint32_t u0, u1;
-    packPointer(&pixelColorPRD, u0, u1);
+    packPointer(&prd, u0, u1);
 
-    // normalize screen plane position, in [0, 1]^2
-    const glm::vec2 screen(glm::vec2(ix + 0.5f, iy + 0.5f) /
+    int numPixelSamples = NUM_PIXEL_SAMPLES;
+
+    glm::vec3 pixelColor{};
+
+    for (int sampleID = 0; sampleID < numPixelSamples; ++sampleID) {
+        // normalized screen plane position, in [0,1]^2
+        const glm::vec2 screen(glm::vec2(ix + prd.random(), iy + prd.random()) /
                            glm::vec2(optixLaunchParams.frame.size));
 
-    // generate ray direction
-    glm::vec3 rayDir = normalize(camera.direction +
-                                      ((screen.x - 0.5f) * camera.horizontal) +
-                                      ((screen.y - 0.5f) * camera.vertical));
+        // generate ray direction
+        glm::vec3 rayDir = normalize(camera.direction +
+                                     ((screen.x - 0.5f) * camera.horizontal) +
+                                     ((screen.y - 0.5f) * camera.vertical));
+        const float tmin = 0.0f;
+        const float tmax = 1e20f;
+        const float rayTime = 0.0f;
+        optixTrace(optixLaunchParams.traversable,
+                   asFloat3(camera.position),
+                   asFloat3(rayDir),
+                   tmin,
+                   tmax,
+                   rayTime,
+                   OptixVisibilityMask(255),
+                   OPTIX_RAY_FLAG_DISABLE_ANYHIT, // OPTIX_RAY_FLAG_NONE,
+                   RADIANCE_RAY_TYPE,
+                   RAY_TYPE_COUNT,
+                   RADIANCE_RAY_TYPE,
+                   u0,
+                   u1);
+        pixelColor += prd.pixelColor;
+    }
+    pixelColor /= numPixelSamples;
 
-    const float tmin = 0.0f;
-    const float tmax = 1e20f;
-    const float rayTime = 0.0f;
-    optixTrace(optixLaunchParams.traversable,
-               asFloat3(camera.position),
-               asFloat3(rayDir),
-               tmin,
-               tmax,
-               rayTime,
-               OptixVisibilityMask(255),
-               OPTIX_RAY_FLAG_DISABLE_ANYHIT, // OPTIX_RAY_FLAG_NONE,
-               RADIANCE_RAY_TYPE,
-               RAY_TYPE_COUNT,
-               RADIANCE_RAY_TYPE,
-               u0,
-               u1);
-
-    const int r = int(255.99f * pixelColorPRD.x);
-    const int g = int(255.99f * pixelColorPRD.y);
-    const int b = int(255.99f * pixelColorPRD.z);
+    const int r = int(255.99f * min(pixelColor.x, 1.0f));
+    const int g = int(255.99f * min(pixelColor.y, 1.0f));
+    const int b = int(255.99f * min(pixelColor.z, 1.0f));
 
     // convert to 32-bit rgba value (we explicitly set alpha to 0xff
     // to make stb_image_write happy ...
