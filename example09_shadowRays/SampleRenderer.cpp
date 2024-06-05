@@ -28,6 +28,7 @@ namespace fs = std::filesystem;
 #include "Texture.h"
 #include "TriangleMesh.h"
 #include "TriangleMeshSBTData.h"
+#include "EnumRayType.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -335,7 +336,7 @@ void SampleRenderer::createRaygenPrograms() {
 
     optixCheck(optixProgramGroupCreate(optixContext,
                                        &pgDesc,
-                                       raygenPGs.size(),
+                                       1,
                                        &pgOptions,
                                        nullptr,
                                        nullptr,
@@ -345,43 +346,68 @@ void SampleRenderer::createRaygenPrograms() {
 
 void SampleRenderer::createMissPrograms() {
     // we do a single ray gen program in this example:
-    missPGs.resize(1);
+    missPGs.resize(RAY_TYPE_COUNT);
 
     OptixProgramGroupOptions pgOptions{};
     OptixProgramGroupDesc pgDesc{};
     pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
     pgDesc.miss.module = module;
-    pgDesc.miss.entryFunctionName = "__miss__radiance";
 
+    // radiance
+    pgDesc.miss.entryFunctionName = "__miss__radiance";
     optixCheck(optixProgramGroupCreate(optixContext,
                                        &pgDesc,
-                                       missPGs.size(),
+                                       1,
                                        &pgOptions,
                                        nullptr,
                                        nullptr,
-                                       &missPGs[0]));
+                                       &missPGs[RADIANCE_RAY_TYPE]));
+
+    // shadow
+    pgDesc.miss.entryFunctionName = "__miss__shadow";
+    optixCheck(optixProgramGroupCreate(optixContext,
+                                       &pgDesc,
+                                       1,
+                                       &pgOptions,
+                                       nullptr,
+                                       nullptr,
+                                       &missPGs[SHADOW_RAY_TYPE]));
     printSuccess();
 }
 
 void SampleRenderer::createHitgroupPrograms() {
     // we do a single ray gen program in this example:
-    hitgroupPGs.resize(1);
+    hitgroupPGs.resize(RAY_TYPE_COUNT);
 
     OptixProgramGroupOptions pgOptions{};
     OptixProgramGroupDesc pgDesc{};
     pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
     pgDesc.hitgroup.moduleCH = module;
-    pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
     pgDesc.hitgroup.moduleAH = module;
-    pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
 
+    // radiance
+    pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
+    pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
     optixCheck(optixProgramGroupCreate(optixContext,
                                        &pgDesc,
-                                       hitgroupPGs.size(),
+                                       1,
                                        &pgOptions,
                                        nullptr,
                                        nullptr,
-                                       &hitgroupPGs[0]));
+                                       &hitgroupPGs[RADIANCE_RAY_TYPE]));
+
+    // shadow rays: technically we don't need this hit group,
+    // since we just use the miss shader to check if we were not
+    // in shadow
+    pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__shadow";
+    pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__shadow";
+    optixCheck(optixProgramGroupCreate(optixContext,
+                                       &pgDesc,
+                                       1,
+                                       &pgOptions,
+                                       nullptr,
+                                       nullptr,
+                                       &hitgroupPGs[SHADOW_RAY_TYPE]));
     printSuccess();
 }
 
@@ -448,22 +474,25 @@ void SampleRenderer::buildSBT() {
     // HITGROUP RECORDS
     std::vector<HitgroupRecord> hitgroupRecords;
     for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
-        auto mesh = model->meshes[meshID];
-        HitgroupRecord rec;
-        // all meshes use the same code, so all same hit group
-        optixCheck(optixSbtRecordPackHeader(hitgroupPGs[0], &rec));
-        rec.data.diffuse = mesh->diffuse;
-        if (mesh->diffuseTextureID >= 0) {
-            rec.data.hasTexture = true;
-            rec.data.texture = textureObjects[mesh->diffuseTextureID];
-        } else {
-            rec.data.hasTexture = false;
+        for (int rayID = 0; rayID < RAY_TYPE_COUNT; ++rayID)
+        {
+			auto mesh = model->meshes[meshID];
+			HitgroupRecord rec;
+			// all meshes use the same code, so all same hit group
+			optixCheck(optixSbtRecordPackHeader(hitgroupPGs[rayID], &rec));
+			rec.data.diffuse = mesh->diffuse;
+			if (mesh->diffuseTextureID >= 0) {
+				rec.data.hasTexture = true;
+				rec.data.texture = textureObjects[mesh->diffuseTextureID];
+			} else {
+				rec.data.hasTexture = false;
+			}
+			rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
+			rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
+			rec.data.normal = (glm::vec3*)normalBuffer[meshID].d_pointer();
+			rec.data.texcoord = (glm::vec2*)texcoordBuffer[meshID].d_pointer();
+			hitgroupRecords.push_back(rec);
         }
-        rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
-        rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
-        rec.data.normal = (glm::vec3*)normalBuffer[meshID].d_pointer();
-        rec.data.texcoord = (glm::vec2*)texcoordBuffer[meshID].d_pointer();
-        hitgroupRecords.push_back(rec);
     }
     hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
     sbt.hitgroupRecordBase = hitgroupRecordsBuffer.d_pointer();
@@ -499,6 +528,41 @@ void SampleRenderer::render() {
     cudaSyncCheck();
 }
 
+
+void SampleRenderer::setCamera(const Camera& camera) {
+    lastSetCamera = camera;
+    launchParams.camera.position = camera.from;
+    launchParams.camera.direction = glm::normalize(camera.at - camera.from);
+    const float cosFovy = 0.66f;
+    const float aspect =
+        launchParams.frame.size.x / float(launchParams.frame.size.y);
+    launchParams.camera.horizontal = cosFovy * aspect *
+        glm::normalize(glm::cross(launchParams.camera.direction, camera.up));
+    launchParams.camera.vertical = cosFovy *
+        glm::normalize(glm::cross(launchParams.camera.horizontal,
+                                  launchParams.camera.direction));
+}
+
+void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
+    if (newSize.x <= 0 || newSize.y <= 0) {
+        return;
+    }
+
+    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
+    launchParams.frame.size = newSize;
+    // colorBuffer.resize free's and reallocs so we need to set the pointer again
+    launchParams.frame.colorBuffer = colorBuffer.dataAsU32Pointer();
+
+    setCamera(lastSetCamera);
+
+    printSuccess();
+}
+
+void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
+    outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
+    colorBuffer.download(&outPayload[0], outPayload.size());
+}
+
 void SampleRenderer::saveFramebuffer() {
     std::vector<uint32_t> pixels;
     downloadFramebuffer(pixels);
@@ -517,36 +581,3 @@ void SampleRenderer::saveFramebuffer() {
     printSuccess();
 }
 
-void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
-    if (newSize.x <= 0 || newSize.y <= 0) {
-        return;
-    }
-
-    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
-    launchParams.frame.size = newSize;
-    // colorBuffer.resize free's and reallocs so we need to set the pointer again
-    launchParams.frame.colorBuffer = colorBuffer.dataAsU32Pointer();
-
-    setCamera(lastSetCamera);
-
-    printSuccess();
-}
-
-void SampleRenderer::setCamera(const Camera& camera) {
-    lastSetCamera = camera;
-    launchParams.camera.position = camera.from;
-    launchParams.camera.direction = glm::normalize(camera.at - camera.from);
-    const float cosFovy = 0.66f;
-    const float aspect =
-        launchParams.frame.size.x / float(launchParams.frame.size.y);
-    launchParams.camera.horizontal = cosFovy * aspect *
-        glm::normalize(glm::cross(launchParams.camera.direction, camera.up));
-    launchParams.camera.vertical = cosFovy *
-        glm::normalize(glm::cross(launchParams.camera.horizontal,
-                                  launchParams.camera.direction));
-}
-
-void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
-    outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    colorBuffer.download(&outPayload[0], outPayload.size());
-}

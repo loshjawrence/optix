@@ -80,7 +80,7 @@ extern "C" __global__ void __closesthit__radiance() {
         const glm::vec3& A = sbtData.vertex[index.x];
         const glm::vec3& B = sbtData.vertex[index.y];
         const glm::vec3& C = sbtData.vertex[index.z];
-        const glm::vec3& geomNormal = glm::normalize(glm::cross(B - A, C - A));
+        const glm::vec3& geomNormal = normalize(glm::cross(B - A, C - A));
         N = geomNormal;
     }
 
@@ -95,7 +95,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
     // compute lambertian coeff
     const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
-    const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, N));
+    const float cosDN = 0.2f + 0.8f * std::fabsf(dot(rayDir, N));
 
     glm::vec3& prd = *getPerRayData<glm::vec3>();
     prd = cosDN * diffuseColor;
@@ -144,7 +144,7 @@ extern "C" __global__ void __raygen__renderFrame() {
                            glm::vec2(optixLaunchParams.frame.size));
 
     // generate ray direction
-    glm::vec3 rayDir = glm::normalize(camera.direction +
+    glm::vec3 rayDir = normalize(camera.direction +
                                       ((screen.x - 0.5f) * camera.horizontal) +
                                       ((screen.y - 0.5f) * camera.vertical));
 

@@ -2,13 +2,12 @@
 
 #include "LaunchParams.h"
 #include "TriangleMeshSBTData.h"
+#include "EnumRayType.h"
 
 /*! launch parameters in constant memory, filled in by optix upon
       optixLaunch (this gets filled in from the buffer we pass to
       optixLaunch) */
 extern "C" __constant__ LaunchParams optixLaunchParams;
-
-enum { SURFACE_RAY_TYPE = 0, RAY_TYPE_COUNT };
 
 static __device__ void* unpackPointer(uint32_t i0, uint32_t i1) {
     const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
@@ -58,6 +57,10 @@ __device__ glm::vec3 randomColor(size_t idx) {
     return glm::vec3((r & 255) / 255.f, (g & 255) / 255.f, (b & 255) / 255.f);
 }
 
+extern "C" __global__ void __closesthit__shadow() {
+    // not going to be used
+}
+
 extern "C" __global__ void __closesthit__radiance() {
     const TriangleMeshSBTData& sbtData =
         *reinterpret_cast<const TriangleMeshSBTData*>(optixGetSbtDataPointer());
@@ -69,20 +72,25 @@ extern "C" __global__ void __closesthit__radiance() {
     const float v = optixGetTriangleBarycentrics().y;
 
     // compute normal
-    glm::vec3 N{};
-    if (sbtData.normal) {
-        // barycentric weighting on the 3 vertex normals
-        const glm::vec3 shadingNormal =
-            ((1.0f - u - v) * sbtData.normal[index.x]) +
-            (u * sbtData.normal[index.y]) + (v * sbtData.normal[index.z]);
-        N = shadingNormal;
-    } else {
-        const glm::vec3& A = sbtData.vertex[index.x];
-        const glm::vec3& B = sbtData.vertex[index.y];
-        const glm::vec3& C = sbtData.vertex[index.z];
-        const glm::vec3& geomNormal = glm::normalize(glm::cross(B - A, C - A));
-        N = geomNormal;
+    const glm::vec3& A = sbtData.vertex[index.x];
+    const glm::vec3& B = sbtData.vertex[index.y];
+    const glm::vec3& C = sbtData.vertex[index.z];
+    glm::vec3 Ng = normalize(glm::cross(B - A, C - A));
+    // barycentric weighting on the 3 vertex normals
+    glm::vec3 Ns = sbtData.normal ? ((1.0f - u - v) * sbtData.normal[index.x]) +
+            (u * sbtData.normal[index.y]) + (v * sbtData.normal[index.z])
+                                  : Ng;
+
+    // face-forward and normalize normals
+    const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
+    if (dot(rayDir, Ng) > 0.0f) {
+        Ng = -Ng;
     }
+    Ng = normalize(Ns);
+    if (dot(Ng, Ns) < 0.0f) {
+        Ns -= 2.0f * dot(Ng, Ns) * Ng;
+    }
+    Ns = normalize(Ns);
 
     // compute diffuse
     glm::vec3 diffuseColor = sbtData.diffuse;
@@ -93,9 +101,36 @@ extern "C" __global__ void __closesthit__radiance() {
         diffuseColor *= asVec3(fromTexture);
     }
 
+    // compute shadow
+    const glm::vec3 surfPos = (1.f - u - v) * sbtData.vertex[index.x] +
+        u * sbtData.vertex[index.y] + v * sbtData.vertex[index.z];
+    const glm::vec3 lightPos(-907.108f, 2205.875f, -400.0267f);
+    const glm::vec3 lightDir = normalize(lightPos - surfPos);
+
+    // trace shadow ray
+    glm::vec3 lightVisibility{};
+    uint32_t u0, u1;
+    packPointer(&lightVisibility, u0, u1);
+    optixTrace(optixLaunchParams.traversable,
+               asFloat3(surfPos + 1e-3f * Ng),
+               asFloat3(lightDir),
+               1e-3f,      // tmin
+               1.f-1e-3f,  // tmax
+               0.0f,       // rayTime
+               OptixVisibilityMask( 255 ),
+               // For shadow rays: skip any/closest hit shaders and terminate on first
+               // intersection with anything. The miss shader is used to mark if the
+               // light was visible.
+               OPTIX_RAY_FLAG_DISABLE_ANYHIT
+               | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT
+               | OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+               SHADOW_RAY_TYPE, // SBT offset
+               RAY_TYPE_COUNT, // SBT stride
+               SHADOW_RAY_TYPE, // missSBTIndex
+               u0, u1 );
+
     // compute lambertian coeff
-    const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
-    const float cosDN = 0.2f + 0.8f * std::fabsf(glm::dot(rayDir, N));
+    const float cosDN = 0.1f + 0.8f * std::fabsf(dot(rayDir, Ns));
 
     glm::vec3& prd = *getPerRayData<glm::vec3>();
     prd = cosDN * diffuseColor;
@@ -103,6 +138,10 @@ extern "C" __global__ void __closesthit__radiance() {
 
 extern "C" __global__ void
 __anyhit__radiance() { /*! for this simple example, this will remain empty */
+}
+
+extern "C" __global__ void
+__anyhit__shadow() { /*! for this simple example, this will remain empty */
 }
 
 //------------------------------------------------------------------------------
@@ -114,6 +153,11 @@ __anyhit__radiance() { /*! for this simple example, this will remain empty */
 // ------------------------------------------------------------------------------
 
 extern "C" __global__ void __miss__radiance() {
+    glm::vec3& prd = *getPerRayData<glm::vec3>();
+    prd = glm::vec3(1.0f);
+}
+
+extern "C" __global__ void __miss__shadow() {
     glm::vec3& prd = *getPerRayData<glm::vec3>();
     prd = glm::vec3(1.0f);
 }
@@ -144,7 +188,7 @@ extern "C" __global__ void __raygen__renderFrame() {
                            glm::vec2(optixLaunchParams.frame.size));
 
     // generate ray direction
-    glm::vec3 rayDir = glm::normalize(camera.direction +
+    glm::vec3 rayDir = normalize(camera.direction +
                                       ((screen.x - 0.5f) * camera.horizontal) +
                                       ((screen.y - 0.5f) * camera.vertical));
 
@@ -159,9 +203,9 @@ extern "C" __global__ void __raygen__renderFrame() {
                rayTime,
                OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT, // OPTIX_RAY_FLAG_NONE,
-               SURFACE_RAY_TYPE,
+               RADIANCE_RAY_TYPE,
                RAY_TYPE_COUNT,
-               SURFACE_RAY_TYPE,
+               RADIANCE_RAY_TYPE,
                u0,
                u1);
 
