@@ -81,8 +81,10 @@ extern "C" __global__ void __closesthit__radiance() {
             (u * sbtData.normal[index.y]) + (v * sbtData.normal[index.z])
                                   : Ng;
 
-    // face-forward and normalize normals
     const glm::vec3 rayDir = asVec3(optixGetWorldRayDirection());
+
+    // face-forward and normalize normals
+    // not sure what this is for, commenting out the if's makes no difference
     if (dot(rayDir, Ng) > 0.0f) {
         Ng = -Ng;
     }
@@ -105,6 +107,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const glm::vec3 surfPos = (1.f - u - v) * sbtData.vertex[index.x] +
         u * sbtData.vertex[index.y] + v * sbtData.vertex[index.z];
     const glm::vec3 lightPos(-907.108f, 2205.875f, -400.0267f);
+    // NOTE: by not normalizing you can set tmax to 1 instead of normalizing and setting tmax to distance to light
     const glm::vec3 lightDir = lightPos - surfPos;
 
     // trace shadow ray
