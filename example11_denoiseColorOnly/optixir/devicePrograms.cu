@@ -46,6 +46,7 @@ static __device__ float3 asFloat3(glm::vec3 input) {
 static __device__ glm::vec3 asVec3(float3 input) {
     return glm::vec3{input.x, input.y, input.z};
 }
+
 static __device__ glm::vec3 asVec3(float4 input) {
     return glm::vec3{input.x, input.y, input.z};
 }
@@ -223,7 +224,7 @@ extern "C" __global__ void __raygen__renderFrame() {
     for (int sampleID = 0; sampleID < numPixelSamples; ++sampleID) {
         // normalized screen plane position, in [0,1]^2
         const glm::vec2 screen(glm::vec2(ix + prd.random(), iy + prd.random()) /
-                           glm::vec2(optixLaunchParams.frame.size));
+                               glm::vec2(optixLaunchParams.frame.size));
 
         // generate ray direction
         glm::vec3 rayDir = normalize(camera.direction +
@@ -247,17 +248,12 @@ extern "C" __global__ void __raygen__renderFrame() {
                    u1);
         pixelColor += prd.pixelColor;
     }
-    pixelColor /= numPixelSamples;
+    glm::vec4 rgba(pixelColor / float(numPixelSamples), 1.f);
 
-    const int r = int(255.99f * min(pixelColor.x, 1.0f));
-    const int g = int(255.99f * min(pixelColor.y, 1.0f));
-    const int b = int(255.99f * min(pixelColor.z, 1.0f));
-
-    // convert to 32-bit rgba value (we explicitly set alpha to 0xff
-    // to make stb_image_write happy ...
-    const uint32_t rgba = 0xff000000 | (r << 0) | (g << 8) | (b << 16);
-
-    // and write to frame buffer ...
-    const uint32_t fbIndex = ix + (iy * optixLaunchParams.frame.size.x);
-    optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
+    // and write/accumulate to frame buffer ...
+    const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
+	rgba += float(optixLaunchParams.frame.frameID) *
+		glm::vec4(optixLaunchParams.frame.renderBuffer[fbIndex]);
+	rgba /= (optixLaunchParams.frame.frameID + 1.0f);
+    optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
 }

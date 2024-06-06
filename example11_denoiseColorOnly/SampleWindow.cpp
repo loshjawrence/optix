@@ -1,43 +1,45 @@
+#define NOMINMAX
+
 #include "SampleWindow.h"
 
 #include <assert.h>
+#include <algorithm>
+
 #include <spdlog/spdlog.h>
 
 #include "Camera.h"
 
 SampleWindow::SampleWindow(const std::string& title,
-			 const Model* model,
-			 const Camera& camera,
-			 const QuadLight& light,
-			 const float worldScale)
-  : GLFCameraWindow(title,camera.from,camera.at,camera.up,worldScale),
-	sample(model, light)
-{
+                           const Model* model,
+                           const Camera& camera,
+                           const QuadLight& light,
+                           const float worldScale)
+    : GLFCameraWindow(title, camera.from, camera.at, camera.up, worldScale)
+    , sample(model, light) {
 }
 
 void SampleWindow::render() {
-      if (cameraFrame.modified) {
-        sample.setCamera(Camera{ cameraFrame.get_from(),
-                                 cameraFrame.get_at(),
-                                 cameraFrame.get_up() });
+    if (cameraFrame.modified) {
+        sample.setCamera(Camera{cameraFrame.get_from(),
+                                cameraFrame.get_at(),
+                                cameraFrame.get_up()});
         cameraFrame.modified = false;
-      }
-      sample.render();
+    }
+    sample.render();
 }
 
 void SampleWindow::draw() {
     sample.downloadFramebuffer(pixels);
-    if (!fbTexture)
-    {
+    if (!fbTexture) {
         try {
-			glGenTextures(1, &fbTexture);
-		} catch (std::runtime_error& e) {
-			spdlog::error("FATAL ERROR: {}", e.what());
+            glGenTextures(1, &fbTexture);
+        } catch (std::runtime_error& e) {
+            spdlog::error("FATAL ERROR: {}", e.what());
             GLenum result = glGetError();
             spdlog::error("glGenTextures did not create a texture. Got {}",
                           result);
-			exit(1);
-		}
+            exit(1);
+        }
     }
 
     glBindTexture(GL_TEXTURE_2D, fbTexture);
@@ -93,4 +95,25 @@ void SampleWindow::resize(const glm::ivec2 newSize) {
     fbSize = newSize;
     sample.resizeFramebuffer(newSize);
     pixels.resize(newSize.x * newSize.y);
+}
+
+void SampleWindow::key(int key, int mods) {
+    if (key == 'D' || key == ' ' || key == 'd') {
+        sample.denoiserOn = !sample.denoiserOn;
+		spdlog::info("denoising now: {}", sample.denoiserOn);
+    }
+    if (key == 'A' || key == 'a') {
+        sample.accumulate = !sample.accumulate;
+		spdlog::info("accumulation/progressive refinement now: {}", sample.accumulate);
+    }
+    if (key == ',') {
+        sample.launchParams.numPixelSamples =
+            std::max(1, sample.launchParams.numPixelSamples - 1);
+		spdlog::info("num samples/pixel now: {}", sample.launchParams.numPixelSamples);
+    }
+    if (key == '.') {
+        sample.launchParams.numPixelSamples =
+            std::max(1, sample.launchParams.numPixelSamples + 1);
+		spdlog::info("num samples/pixel now: {}", sample.launchParams.numPixelSamples);
+    }
 }

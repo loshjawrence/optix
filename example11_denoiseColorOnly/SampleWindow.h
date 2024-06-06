@@ -21,6 +21,7 @@ struct SampleWindow : public GLFCameraWindow {
     virtual void render() override;
     virtual void draw() override;
     virtual void resize(glm::ivec2 newSize) override;
+    virtual void key(int key, int mods) override;
 
     glm::ivec2 fbSize{};
     GLuint fbTexture{};

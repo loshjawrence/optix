@@ -25,6 +25,11 @@ public:
     void downloadFramebuffer(std::vector<uint32_t>& outPayload);
 
 	void setCamera(const Camera& camera);
+
+    bool denoiserOn = true;
+    bool accumulate = true;
+
+    LaunchParams launchParams;
 protected:
     /*! creates and configures a optix device context (in this simple
         example, only for the primary GPU device) */
@@ -86,29 +91,37 @@ protected:
     CUDABuffer hitgroupRecordsBuffer{};
     OptixShaderBindingTable sbt{};
 
-    /*! @{ our launch parameters, on the host, and the buffer to store
-        them on the device */
-    LaunchParams launchParams{};
     CUDABuffer launchParamsBuffer{};
     /*! @} */
 
-    CUDABuffer colorBuffer{};
+    /*! the color buffer we use during _rendering_, which is a bit
+        larger than the actual displayed frame buffer (to account for
+        the border), and in float4 format (the denoiser requires
+        floats) */
+    CUDABuffer renderBuffer{};
+    
+    /*! the actual final color buffer used for display, in rgba8 */
+    CUDABuffer denoisedBuffer{};
+
+    OptixDenoiser denoiser{};
+    CUDABuffer denoiserScratch{};
+    CUDABuffer    denoiserState{};
 
     /*! the camera we are to render with. */
     Camera lastSetCamera{};
     
     /*! the model we are going to trace rays against */
-    const Model* model;
+    const Model* model{};
     /*! one buffer per input mesh */
-    std::vector<CUDABuffer> vertexBuffer;
-    std::vector<CUDABuffer> normalBuffer;
-    std::vector<CUDABuffer> texcoordBuffer;
-    std::vector<CUDABuffer> indexBuffer;
+    std::vector<CUDABuffer> vertexBuffer{};
+    std::vector<CUDABuffer> normalBuffer{};
+    std::vector<CUDABuffer> texcoordBuffer{};
+    std::vector<CUDABuffer> indexBuffer{};
 
     //! buffer that keeps the (final, compacted) accel structure
-    CUDABuffer asBuffer;
+    CUDABuffer asBuffer{};
 
     // one texture per object and pixel array per used texture
-    std::vector<cudaArray_t> textureArrays;
-    std::vector<cudaTextureObject_t> textureObjects;
+    std::vector<cudaArray_t> textureArrays{};
+    std::vector<cudaTextureObject_t> textureObjects{};
 };

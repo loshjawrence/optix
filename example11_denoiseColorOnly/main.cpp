@@ -34,6 +34,14 @@ int main() {
                                                 camera,
                                                 light,
                                                 worldScale);
+        window->enableFlyMode();
+
+        spdlog::info(
+            "Press 'a' to enable/disable accumulation/progressive refinement");
+        spdlog::info("Press ' ' to enable/disable denoising");
+        spdlog::info("Press ',' to reduce the number of paths/pixel");
+        spdlog::info("Press '.' to increase the number of paths/pixel");
+
         window->run();
 
     } catch (std::runtime_error& e) {

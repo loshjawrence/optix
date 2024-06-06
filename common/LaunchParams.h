@@ -9,6 +9,7 @@ struct LaunchParams {
     struct {
         int frameID{};
         uint32_t* colorBuffer{};
+        glm::vec4* renderBuffer{};
         uint32_t* normalBuffer{};
         uint32_t* albedoBuffer{};
         glm::ivec2 size{};

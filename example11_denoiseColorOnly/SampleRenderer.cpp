@@ -1,7 +1,10 @@
+#define NOMINMAX
+
 #include "SampleRenderer.h"
 
 #include <filesystem>
 #include <format>
+#include <algorithm>
 #include <source_location>
 namespace fs = std::filesystem;
 
@@ -22,14 +25,14 @@ namespace fs = std::filesystem;
 
 #include "CMakeGenerated.h"
 #include "CudaUtil.h"
+#include "EnumRayType.h"
 #include "IOUtil.h"
 #include "Model.h"
 #include "OptixUtil.h"
+#include "QuadLight.h"
 #include "Texture.h"
 #include "TriangleMesh.h"
 #include "TriangleMeshSBTData.h"
-#include "EnumRayType.h"
-#include "QuadLight.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -70,11 +73,9 @@ SampleRenderer::SampleRenderer(const Model* model, const QuadLight& light)
     initOptix();
 
     launchParams.light.origin = light.origin;
-    launchParams.light.du     = light.du;
-    launchParams.light.dv     = light.dv;
-    launchParams.light.power  = light.power;
-
-    resizeFramebuffer({1200, 1024});
+    launchParams.light.du = light.du;
+    launchParams.light.dv = light.dv;
+    launchParams.light.power = light.power;
 
     createContext();
     createModule();
@@ -480,24 +481,23 @@ void SampleRenderer::buildSBT() {
     // HITGROUP RECORDS
     std::vector<HitgroupRecord> hitgroupRecords;
     for (int meshID = 0; meshID < model->meshes.size(); meshID++) {
-        for (int rayID = 0; rayID < RAY_TYPE_COUNT; ++rayID)
-        {
-			auto mesh = model->meshes[meshID];
-			HitgroupRecord rec;
-			// all meshes use the same code, so all same hit group
-			optixCheck(optixSbtRecordPackHeader(hitgroupPGs[rayID], &rec));
-			rec.data.diffuse = mesh->diffuse;
-			if (mesh->diffuseTextureID >= 0) {
-				rec.data.hasTexture = true;
-				rec.data.texture = textureObjects[mesh->diffuseTextureID];
-			} else {
-				rec.data.hasTexture = false;
-			}
-			rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
-			rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
-			rec.data.normal = (glm::vec3*)normalBuffer[meshID].d_pointer();
-			rec.data.texcoord = (glm::vec2*)texcoordBuffer[meshID].d_pointer();
-			hitgroupRecords.push_back(rec);
+        for (int rayID = 0; rayID < RAY_TYPE_COUNT; ++rayID) {
+            auto mesh = model->meshes[meshID];
+            HitgroupRecord rec;
+            // all meshes use the same code, so all same hit group
+            optixCheck(optixSbtRecordPackHeader(hitgroupPGs[rayID], &rec));
+            rec.data.diffuse = mesh->diffuse;
+            if (mesh->diffuseTextureID >= 0) {
+                rec.data.hasTexture = true;
+                rec.data.texture = textureObjects[mesh->diffuseTextureID];
+            } else {
+                rec.data.hasTexture = false;
+            }
+            rec.data.index = (glm::ivec3*)indexBuffer[meshID].d_pointer();
+            rec.data.vertex = (glm::vec3*)vertexBuffer[meshID].d_pointer();
+            rec.data.normal = (glm::vec3*)normalBuffer[meshID].d_pointer();
+            rec.data.texcoord = (glm::vec2*)texcoordBuffer[meshID].d_pointer();
+            hitgroupRecords.push_back(rec);
         }
     }
     hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
@@ -509,14 +509,19 @@ void SampleRenderer::buildSBT() {
 }
 
 void SampleRenderer::render() {
-    if (!launchParams.frame.colorBuffer || launchParams.frame.size.x == 0) {
+    if (!launchParams.frame.renderBuffer || launchParams.frame.size.x == 0) {
         spdlog::warn(
             "Ran with invalid launch params, launchParamsfbSize.x is 0 or "
-            "launchParams.frame.colorBuffer is nullptr. Need to init first.");
+            "launchParams.frame.renderBuffer is nullptr. Need to init first.");
         return;
     }
 
+    if (!accumulate) {
+        launchParams.frame.frameID = 0;
+    }
+
     launchParamsBuffer.upload(&launchParams, 1);
+    launchParams.frame.frameID++;
     const int depth = 1;
     optixCheck(optixLaunch(pipeline,
                            stream,
@@ -527,13 +532,61 @@ void SampleRenderer::render() {
                            launchParams.frame.size.y,
                            depth));
 
+    OptixDenoiserParams denoiserParams{};
+    denoiserParams.hdrIntensity = (CUdeviceptr)0;
+    if (accumulate) {
+        denoiserParams.blendFactor = 1.0f / launchParams.frame.frameID;
+    }
+
+    OptixImage2D inputLayer{};
+    inputLayer.data = renderBuffer.d_pointer();
+    inputLayer.width = launchParams.frame.size.x;
+    inputLayer.height = launchParams.frame.size.y;
+    inputLayer.rowStrideInBytes = launchParams.frame.size.x * sizeof(float4);
+    inputLayer.pixelStrideInBytes = sizeof(float4);
+    inputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    OptixImage2D outputLayer{};
+    outputLayer.data = denoisedBuffer.d_pointer();
+    outputLayer.width = launchParams.frame.size.x;
+    outputLayer.height = launchParams.frame.size.y;
+    outputLayer.rowStrideInBytes = launchParams.frame.size.x * sizeof(float4);
+    outputLayer.pixelStrideInBytes = sizeof(float4);
+    outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+    if (denoiserOn) {
+        OptixDenoiserGuideLayer denoiserGuideLayer{};
+        OptixDenoiserLayer denoiserLayer{};
+        denoiserLayer.input = inputLayer;
+        denoiserLayer.output = outputLayer;
+        int inputOffsetX{};
+        int inputOffsetY{};
+        int numLayers{1};
+        optixCheck(optixDenoiserInvoke(denoiser,
+                                       0,
+                                       &denoiserParams,
+                                       denoiserState.d_pointer(),
+                                       denoiserState.byteSize(),
+                                       &denoiserGuideLayer,
+                                       &denoiserLayer,
+                                       numLayers,
+                                       inputOffsetX,
+                                       inputOffsetY,
+                                       denoiserScratch.d_pointer(),
+                                       denoiserScratch.byteSize()));
+    } else {
+        cudaMemcpy((void*)outputLayer.data,
+                   (void*)inputLayer.data,
+                   outputLayer.width * outputLayer.height * sizeof(float4),
+                   cudaMemcpyDeviceToHost);
+    }
+
     // sync - make sure the frame is rendered before we download and
     // display (obviously, for a high-performance application you
     // want to use streams and double-buffering, but for this simple
     // example, this will have to do)
     cudaSyncCheck();
 }
-
 
 void SampleRenderer::setCamera(const Camera& camera) {
     lastSetCamera = camera;
@@ -553,20 +606,53 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
     if (newSize.x <= 0 || newSize.y <= 0) {
         return;
     }
+    if (denoiser) {
+        optixCheck(optixDenoiserDestroy(denoiser));
+    }
 
-    colorBuffer.resize(newSize.x * newSize.y * sizeof(int));
+    // create denoiser
+    OptixDenoiserOptions denoiserOptions{};
+    optixCheck(optixDenoiserCreate(optixContext,
+                                   OPTIX_DENOISER_MODEL_KIND_LDR,
+                                   &denoiserOptions,
+                                   &denoiser));
+
+    OptixDenoiserSizes denoiserReturnSizes{};
+    optixCheck(optixDenoiserComputeMemoryResources(denoiser,
+                                                   newSize.x,
+                                                   newSize.y,
+                                                   &denoiserReturnSizes));
+
+	size_t max = std::max(denoiserReturnSizes.withOverlapScratchSizeInBytes,
+                          denoiserReturnSizes.withoutOverlapScratchSizeInBytes);
+    denoiserScratch.resize(max);
+
+    denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
+
+    denoisedBuffer.resize(newSize.x * newSize.y * sizeof(float4));
+    renderBuffer.resize(newSize.x * newSize.y * sizeof(float4));
+
     launchParams.frame.size = newSize;
-    // colorBuffer.resize free's and reallocs so we need to set the pointer again
-    launchParams.frame.colorBuffer = colorBuffer.dataAsU32Pointer();
+    launchParams.frame.renderBuffer =
+        reinterpret_cast<glm::vec4*>(renderBuffer.d_pointer());
 
     setCamera(lastSetCamera);
+
+    optixCheck(optixDenoiserSetup(denoiser,
+                                  0,
+                                  newSize.x,
+                                  newSize.y,
+                                  denoiserState.d_pointer(),
+                                  denoiserState.byteSize(),
+                                  denoiserScratch.d_pointer(),
+                                  denoiserScratch.byteSize()));
 
     printSuccess();
 }
 
 void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    colorBuffer.download(&outPayload[0], outPayload.size());
+    denoisedBuffer.download(&outPayload[0], outPayload.size());
 }
 
 void SampleRenderer::saveFramebuffer() {
@@ -586,4 +672,3 @@ void SampleRenderer::saveFramebuffer() {
 
     printSuccess();
 }
-
