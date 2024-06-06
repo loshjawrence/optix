@@ -22,7 +22,7 @@ public:
 
     // resize frame buffer
     void resizeFramebuffer(const glm::ivec2& newSize);
-    void downloadFramebuffer(std::vector<uint32_t>& outPayload);
+    void downloadFramebuffer(std::vector<glm::vec4>& outPayload);
 
 	void setCamera(const Camera& camera);
 

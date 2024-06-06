@@ -650,21 +650,21 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
     printSuccess();
 }
 
-void SampleRenderer::downloadFramebuffer(std::vector<uint32_t>& outPayload) {
+void SampleRenderer::downloadFramebuffer(std::vector<glm::vec4>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    denoisedBuffer.download(&outPayload[0], outPayload.size());
+    renderBuffer.download(&outPayload[0], outPayload.size());
 }
 
 void SampleRenderer::saveFramebuffer() {
-    std::vector<uint32_t> pixels;
+    std::vector<glm::vec4> pixels{};
     downloadFramebuffer(pixels);
-    const fs::path filename = g_debugImagesPath / "example2.png";
+    const fs::path filename = g_debugImagesPath / "example11.png";
     if (!stbi_write_png(filename.string().c_str(),
                         launchParams.frame.size.x,
                         launchParams.frame.size.y,
                         4,
                         reinterpret_cast<const void*>(pixels.data()),
-                        launchParams.frame.size.x * sizeof(uint32_t))) {
+                        launchParams.frame.size.x * sizeof(glm::vec4))) {
         spdlog::error("Failed to save framebuffer to {}.", filename.string());
     }
 

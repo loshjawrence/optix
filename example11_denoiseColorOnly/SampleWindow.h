@@ -26,5 +26,5 @@ struct SampleWindow : public GLFCameraWindow {
     glm::ivec2 fbSize{};
     GLuint fbTexture{};
     SampleRenderer sample;
-    std::vector<uint32_t> pixels{};
+    std::vector<glm::vec4> pixels{};
 };
