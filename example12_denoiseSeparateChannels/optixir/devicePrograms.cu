@@ -260,9 +260,8 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     // and write/accumulate to frame buffer ...
     const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
-    //glm::vec4 scaledPrev = float(optixLaunchParams.frame.frameID) *
-    //    glm::vec4(optixLaunchParams.frame.colorBuffer[fbIndex]);
-    //rgba += scaledPrev;
+    glm::vec4 scaledPrev = float(optixLaunchParams.frame.frameID) * optixLaunchParams.frame.renderBuffer[fbIndex];
+    rgba += scaledPrev;
     rgba /= (optixLaunchParams.frame.frameID + 1.0f);
     optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
     //optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
