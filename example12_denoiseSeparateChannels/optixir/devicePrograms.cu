@@ -208,10 +208,9 @@ extern "C" __global__ void __raygen__renderFrame() {
     const int iy = optixGetLaunchIndex().y;
     const auto& camera = optixLaunchParams.camera;
 
-    PRD prd;
+    PRD prd{};
     prd.random.init(ix + iy * optixLaunchParams.frame.size.x,
-                   optixLaunchParams.frame.frameID);
-    prd.pixelColor = glm::vec3(0.f);
+                    optixLaunchParams.frame.frameID + 1);
 
     // store the u64 pointer to the pixelColorPRD var on our stack
     // in 2 u32s so that those u32s can be passed to optixTrace
@@ -222,14 +221,13 @@ extern "C" __global__ void __raygen__renderFrame() {
     int numPixelSamples = optixLaunchParams.numPixelSamples;
 
     glm::vec3 pixelColor{};
-    glm::vec3 pixelNormal{};
-    glm::vec3 pixelAlbedo{};
+    //glm::vec3 pixelAlbedo{};
+    //glm::vec3 pixelNormal{};
 
     for (int sampleID = 0; sampleID < numPixelSamples; ++sampleID) {
         // normalized screen plane position, in [0,1]^2
         const glm::vec2 screen(glm::vec2(ix + prd.random(), iy + prd.random()) /
                                glm::vec2(optixLaunchParams.frame.size));
-
         // generate ray direction
         glm::vec3 rayDir = normalize(camera.direction +
                                      ((screen.x - 0.5f) * camera.horizontal) +
@@ -251,19 +249,22 @@ extern "C" __global__ void __raygen__renderFrame() {
                    u0,
                    u1);
         pixelColor += prd.pixelColor;
+        //pixelAlbedo += prd.pixelAlbedo;
+        //pixelNormal += prd.pixelNormal;
     }
-    glm::vec4 rgba(pixelColor / float(numPixelSamples), 1.f);
-    glm::vec4 albedo(pixelAlbedo / float(numPixelSamples), 1.f);
-    glm::vec4 normal(pixelNormal / float(numPixelSamples), 1.f);
+    float invNumPixelSamples = 1.0f / numPixelSamples;
+    pixelColor *= invNumPixelSamples;
+    glm::vec4 rgba(pixelColor, 1.f);
+    //glm::vec4 albedo(pixelAlbedo / float(numPixelSamples), 1.f);
+    //glm::vec4 normal(pixelNormal / float(numPixelSamples), 1.f);
 
     // and write/accumulate to frame buffer ...
     const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
-
-	rgba += float(optixLaunchParams.frame.frameID) *
-		glm::vec4(optixLaunchParams.frame.renderBuffer[fbIndex]);
-	rgba /= (optixLaunchParams.frame.frameID + 1.0f);
-
+    //glm::vec4 scaledPrev = float(optixLaunchParams.frame.frameID) *
+    //    glm::vec4(optixLaunchParams.frame.colorBuffer[fbIndex]);
+    //rgba += scaledPrev;
+    rgba /= (optixLaunchParams.frame.frameID + 1.0f);
     optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
-    optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
-    optixLaunchParams.frame.normalBuffer[fbIndex] = normal;
+    //optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
+    //optixLaunchParams.frame.normalBuffer[fbIndex] = normal;
 }

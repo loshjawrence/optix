@@ -605,10 +605,10 @@ void SampleRenderer::render() {
         cudaMemcpy((void*)outputLayer.data,
                    (void*)inputLayer[0].data,
                    outputLayer.width * outputLayer.height * sizeof(float4),
-                   cudaMemcpyDeviceToHost);
+                   cudaMemcpyDeviceToDevice);
     }
 
-    computeFinalPixelColors();
+    //computeFinalPixelColors();
 
     // sync - make sure the frame is rendered before we download and
     // display (obviously, for a high-performance application you
@@ -660,10 +660,10 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
     denoiserState.resize(denoiserReturnSizes.stateSizeInBytes);
 
     denoisedBuffer.resize(newSize.x * newSize.y * sizeof(float4));
-    fbRender.resize(newSize.x * newSize.y * sizeof(float4));
-    fbNormal.resize(newSize.x * newSize.y * sizeof(float4));
-    fbAlbedo.resize(newSize.x * newSize.y * sizeof(float4));
-    finalColorBuffer.resize(newSize.x * newSize.y * sizeof(float4));
+    fbRender.resize(newSize.x * newSize.y * sizeof(glm::vec4));
+    fbNormal.resize(newSize.x * newSize.y * sizeof(glm::vec4));
+    fbAlbedo.resize(newSize.x * newSize.y * sizeof(glm::vec4));
+    finalColorBuffer.resize(newSize.x * newSize.y * sizeof(glm::vec4));
 
     launchParams.frame.size = newSize;
     launchParams.frame.renderBuffer =
@@ -689,13 +689,13 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
 
 void SampleRenderer::downloadFramebuffer(std::vector<glm::vec4>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    finalColorBuffer.download(&outPayload[0], outPayload.size());
+    fbRender.download(&outPayload[0], outPayload.size());
 }
 
 void SampleRenderer::saveFramebuffer() {
     std::vector<glm::vec4> pixels{};
     downloadFramebuffer(pixels);
-    const fs::path filename = g_debugImagesPath / "example11.png";
+    const fs::path filename = g_debugImagesPath / "example12.png";
     if (!stbi_write_png(filename.string().c_str(),
                         launchParams.frame.size.x,
                         launchParams.frame.size.y,

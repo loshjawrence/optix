@@ -26,7 +26,7 @@ public:
 
     void setCamera(const Camera& camera);
 
-    bool denoiserOn = true;
+    bool denoiserOn = false;
     bool accumulate = true;
 
     LaunchParams launchParams;

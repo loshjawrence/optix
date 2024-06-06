@@ -578,7 +578,7 @@ void SampleRenderer::render() {
         cudaMemcpy((void*)outputLayer.data,
                    (void*)inputLayer.data,
                    outputLayer.width * outputLayer.height * sizeof(float4),
-                   cudaMemcpyDeviceToHost);
+                   cudaMemcpyDeviceToDevice);
     }
 
     // sync - make sure the frame is rendered before we download and

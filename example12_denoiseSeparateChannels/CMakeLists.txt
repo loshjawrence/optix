@@ -18,12 +18,7 @@ set(CUDA_COMPILE_OPTIONS
     --use_fast_math
 	--relocatable-device-code=true
     --gpu-architecture=compute_80
-    --use-local-env
-    -x cu
-    --maxrregcount=0
 	--machine=64
-    --compile
-    -cudart static
     --extended-lambda
     -Wno-deprecated-gpu-targets
     -diag-suppress 20012
@@ -133,13 +128,9 @@ target_link_libraries(
 	glad::glad
 	spdlog::spdlog_header_only
 	tinyobjloader::tinyobjloader
-	CUDA::cudart_static
+	CUDA::cudart
 	CUDA::cuda_driver
     CUDA::nvtx3
-    CUDA::cufft
-    CUDA::curand
-    CUDA::cublas
-    CUDA::cublasLt
 )
 
 set(usePrecompiledHeaders 0)
