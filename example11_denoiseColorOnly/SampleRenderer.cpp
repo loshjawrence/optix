@@ -590,6 +590,7 @@ void SampleRenderer::render() {
 
 void SampleRenderer::setCamera(const Camera& camera) {
     lastSetCamera = camera;
+    launchParams.frame.frameID = 0;
     launchParams.camera.position = camera.from;
     launchParams.camera.direction = glm::normalize(camera.at - camera.from);
     const float cosFovy = 0.66f;
@@ -652,7 +653,7 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
 
 void SampleRenderer::downloadFramebuffer(std::vector<glm::vec4>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    renderBuffer.download(&outPayload[0], outPayload.size());
+    denoisedBuffer.download(&outPayload[0], outPayload.size());
 }
 
 void SampleRenderer::saveFramebuffer() {

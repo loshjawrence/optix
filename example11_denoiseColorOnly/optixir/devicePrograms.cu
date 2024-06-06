@@ -5,8 +5,7 @@
 #include "Random.h"
 #include "TriangleMeshSBTData.h"
 
-#define NUM_LIGHT_SAMPLES 1
-#define NUM_PIXEL_SAMPLES 16
+#define NUM_LIGHT_SAMPLES 4
 
 using Random = LCG<16>;
 
@@ -203,12 +202,11 @@ extern "C" __global__ void __raygen__renderFrame() {
     // compute a test pattern based on pixel ID
     const int ix = optixGetLaunchIndex().x;
     const int iy = optixGetLaunchIndex().y;
-    const int accumID = optixLaunchParams.frame.accumID;
     const auto& camera = optixLaunchParams.camera;
 
     PRD prd;
-    prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
-                    iy + accumID * optixLaunchParams.frame.size.y);
+    prd.random.init(ix + iy * optixLaunchParams.frame.size.x,
+                   optixLaunchParams.frame.frameID);
     prd.pixelColor = glm::vec3(0.f);
 
     // store the u64 pointer to the pixelColorPRD var on our stack
@@ -217,7 +215,7 @@ extern "C" __global__ void __raygen__renderFrame() {
     uint32_t u0, u1;
     packPointer(&prd, u0, u1);
 
-    int numPixelSamples = NUM_PIXEL_SAMPLES;
+    int numPixelSamples = optixLaunchParams.numPixelSamples;
 
     glm::vec3 pixelColor{};
 
