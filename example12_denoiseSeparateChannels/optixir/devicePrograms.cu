@@ -1,4 +1,6 @@
 #include <optix_device.h>
+#include <cuda_runtime.h>
+#include <optix.h>
 
 #include "EnumRayType.h"
 #include "LaunchParams.h"
@@ -253,15 +255,27 @@ extern "C" __global__ void __raygen__renderFrame() {
         //pixelNormal += prd.pixelNormal;
     }
     float invNumPixelSamples = 1.0f / numPixelSamples;
+
     pixelColor *= invNumPixelSamples;
     glm::vec4 rgba(pixelColor, 1.f);
-    //glm::vec4 albedo(pixelAlbedo / float(numPixelSamples), 1.f);
-    //glm::vec4 normal(pixelNormal / float(numPixelSamples), 1.f);
+
+    //pixelAlbedo *= invNumPixelSamples;
+    //glm::vec4 albedo(pixelAlbedo, 1.f);
+
+    //pixelNormal *= invNumPixelSamples;
+    //glm::vec4 normal(pixelNormal, 1.f);
 
     // and write/accumulate to frame buffer ...
     const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
-    glm::vec4 scaledPrev = float(optixLaunchParams.frame.frameID) * optixLaunchParams.frame.renderBuffer[fbIndex];
-    rgba += scaledPrev;
+
+    // only works when i dont get black screen so cant printf debug
+    // extensions->nsight->startcudasdebugging next gen only shows garbage values no matter if it works or not
+    if (optixLaunchParams.frame.frameID == 0 && fbIndex == 0)
+    {
+        printf("WHY HELLO THEEEEEEERERE");
+    }
+
+    rgba += float(optixLaunchParams.frame.frameID) * optixLaunchParams.frame.renderBuffer[fbIndex];
     rgba /= (optixLaunchParams.frame.frameID + 1.0f);
     optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
     //optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
