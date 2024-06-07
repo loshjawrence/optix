@@ -309,9 +309,9 @@ void SampleRenderer::createModule() {
 #if DEBUG
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
-    pipelineCompileOptions.exceptionFlags =
-        OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH |
-        OPTIX_EXCEPTION_FLAG_USER;
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_USER;
+    // NOTE: OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW causes issues with 
+    //pipelineCompileOptions.exceptionFlags |= OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 #else
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
@@ -608,7 +608,7 @@ void SampleRenderer::render() {
                    cudaMemcpyDeviceToDevice);
     }
 
-    //computeFinalPixelColors();
+    computeFinalPixelColors();
 
     // sync - make sure the frame is rendered before we download and
     // display (obviously, for a high-performance application you
@@ -689,7 +689,7 @@ void SampleRenderer::resizeFramebuffer(const glm::ivec2& newSize) {
 
 void SampleRenderer::downloadFramebuffer(std::vector<glm::vec4>& outPayload) {
     outPayload.resize(launchParams.frame.size.x * launchParams.frame.size.y);
-    fbRender.download(&outPayload[0], outPayload.size());
+    finalColorBuffer.download(&outPayload[0], outPayload.size());
 }
 
 void SampleRenderer::saveFramebuffer() {

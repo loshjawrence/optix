@@ -21,7 +21,7 @@ set(CUDA_COMPILE_OPTIONS
 	--machine=64
     --extended-lambda
     -Wno-deprecated-gpu-targets
-    -diag-suppress 20012
+    -diag-suppress "20012,177"
     $<$<AND:$<CONFIG:Debug>>:-G>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )

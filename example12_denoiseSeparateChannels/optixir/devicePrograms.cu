@@ -170,9 +170,9 @@ extern "C" __global__ void __closesthit__radiance() {
         pixelColor += lightVisibility * optixLaunchParams.light.power *
             diffuseColor * NdotL / (lightDist * lightDist * numLightSamples);
     }
+    prd.pixelColor = pixelColor;
     prd.pixelNormal = Ns;
     prd.pixelAlbedo = diffuseColor;
-    prd.pixelColor = pixelColor;
 }
 
 extern "C" __global__ void
@@ -222,6 +222,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     int numPixelSamples = optixLaunchParams.numPixelSamples;
 
+    float jawn[1];
     glm::vec3 pixelColor{};
     //glm::vec3 pixelAlbedo{};
     //glm::vec3 pixelNormal{};
