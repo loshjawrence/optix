@@ -222,10 +222,9 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     int numPixelSamples = optixLaunchParams.numPixelSamples;
 
-    float jawn[1];
     glm::vec3 pixelColor{};
-    //glm::vec3 pixelAlbedo{};
-    //glm::vec3 pixelNormal{};
+    glm::vec3 pixelAlbedo{};
+    glm::vec3 pixelNormal{};
 
     for (int sampleID = 0; sampleID < numPixelSamples; ++sampleID) {
         // normalized screen plane position, in [0,1]^2
@@ -252,19 +251,13 @@ extern "C" __global__ void __raygen__renderFrame() {
                    u0,
                    u1);
         pixelColor += prd.pixelColor;
-        //pixelAlbedo += prd.pixelAlbedo;
-        //pixelNormal += prd.pixelNormal;
+        pixelAlbedo += prd.pixelAlbedo;
+        pixelNormal += prd.pixelNormal;
     }
-    float invNumPixelSamples = 1.0f / numPixelSamples;
 
-    pixelColor *= invNumPixelSamples;
-    glm::vec4 rgba(pixelColor, 1.f);
-
-    //pixelAlbedo *= invNumPixelSamples;
-    //glm::vec4 albedo(pixelAlbedo, 1.f);
-
-    //pixelNormal *= invNumPixelSamples;
-    //glm::vec4 normal(pixelNormal, 1.f);
+    glm::vec4 rgba(pixelColor / float(numPixelSamples), 1.f);
+    glm::vec4 albedo(pixelAlbedo / float(numPixelSamples), 1.f);
+    glm::vec4 normal(pixelNormal / float(numPixelSamples), 1.f);
 
     // and write/accumulate to frame buffer ...
     const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
@@ -279,6 +272,6 @@ extern "C" __global__ void __raygen__renderFrame() {
     rgba += float(optixLaunchParams.frame.frameID) * optixLaunchParams.frame.renderBuffer[fbIndex];
     rgba /= (optixLaunchParams.frame.frameID + 1.0f);
     optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
-    //optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
-    //optixLaunchParams.frame.normalBuffer[fbIndex] = normal;
+    optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
+    optixLaunchParams.frame.normalBuffer[fbIndex] = normal;
 }

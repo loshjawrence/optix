@@ -15,6 +15,8 @@ namespace fs = std::filesystem;
 #include <optix_stubs.h>
 #include <optix_types.h>
 
+#include <optix_stack_size.h>
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -437,16 +439,16 @@ void SampleRenderer::createPipeline() {
                                    nullptr,
                                    &pipeline));
     constexpr int KB = 1024;
-    constexpr int TWO_KB = 2 * KB;
+    constexpr int many_KB = 4 * KB;
     optixCheck(optixPipelineSetStackSize(
         // [in] The pipeline to configure the stack size for
         pipeline,
         // [in] The direct stack size requirement for direct callables invoked from IS(intersection) or AH(anyhit).
-        TWO_KB,
+        many_KB,
         // [in] The direct stack size requirement for direct callables invoked from RG(raygen), MS(miss), or CH(closesthit).
-        TWO_KB,
+        many_KB,
         // [in] The continuation stack requirement.
-        TWO_KB,
+        many_KB,
         // [in] The maximum depth of a traversable graph passed to trace.
         1));
 
