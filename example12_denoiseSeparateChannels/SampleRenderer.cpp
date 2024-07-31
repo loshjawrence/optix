@@ -311,8 +311,9 @@ void SampleRenderer::createModule() {
 #if DEBUG
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
     moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_USER;
-    // NOTE: OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW causes issues with 
+    pipelineCompileOptions.exceptionFlags =
+        OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_USER;
+    // NOTE: OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW causes issues with
     //pipelineCompileOptions.exceptionFlags |= OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 #else
     moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;

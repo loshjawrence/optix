@@ -17,12 +17,11 @@ list(APPEND INCLUDE_DIRS
 set(CUDA_COMPILE_OPTIONS
     --use_fast_math
 	--relocatable-device-code=true
-    --gpu-architecture=compute_80
 	--machine=64
     --extended-lambda
     -Wno-deprecated-gpu-targets
     -diag-suppress "20012,177"
-    $<$<AND:$<CONFIG:Debug>>:-G>
+    $<$<AND:$<CONFIG:Debug>>:-G -g>
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-O3>
 )
 
@@ -38,12 +37,20 @@ set_property(TARGET ${OPTIXIR_TARGET} PROPERTY CUDA_OPTIX_COMPILATION ON)
 target_include_directories(${OPTIXIR_TARGET} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${OPTIXIR_TARGET} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_COMPILE_OPTIONS}>)
 set_target_properties(${OPTIXIR_TARGET} PROPERTIES
-	CUDA_ARCHITECTURES OFF
+	CUDA_ARCHITECTURES native
 	CUDA_SEPARABLE_COMPILATION ON
     POSITION_INDEPENDENT_CODE ON
 	CUDA_VERBOSE_BUILD ON
 )
 target_compile_definitions(${OPTIXIR_TARGET} PRIVATE $<$<CONFIG:Debug>:DEBUG>)
+
+add_custom_target(${OPTIXIR_TARGET}_copyFiles ALL
+				  COMMAND ${CMAKE_COMMAND} -E copy_directory
+                  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${OPTIXIR_TARGET}.dir/optixir
+                  ${CMAKE_CURRENT_SOURCE_DIR}/optixir
+                  COMMENT "==== COPYING .OPTIXIR FILES ===="
+                  DEPENDS ${OPTIXIR_TARGET}
+)
 
 # Main Executable Target
 add_executable(${SUBPROJECT_NAME} main.cpp)
@@ -96,6 +103,7 @@ target_sources(
 add_dependencies(
     ${SUBPROJECT_NAME}
 	${OPTIXIR_TARGET}
+	${OPTIXIR_TARGET}_copyFiles
 )
 
 target_include_directories(
@@ -119,6 +127,8 @@ set_target_properties(${SUBPROJECT_NAME} PROPERTIES
 	CUDA_VERBOSE_BUILD ON
 )
 
+thrust_create_target(Thrust)
+
 target_link_libraries(
 	${SUBPROJECT_NAME}
     PRIVATE
@@ -131,6 +141,7 @@ target_link_libraries(
 	CUDA::cudart
 	CUDA::cuda_driver
     CUDA::nvtx3
+    Thrust
 )
 
 set(usePrecompiledHeaders 0)
@@ -157,8 +168,4 @@ file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/${GENERATED_H_FILE} ${CMAKE_CURRENT_S
 add_custom_command(TARGET ${SUBPROJECT_NAME} POST_BUILD
 				   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/../compile_commands.json ${CMAKE_SOURCE_DIR}
                    COMMENT "Copying compile_commands.json to root for non-msvc text editors..."
-)
-add_custom_command(TARGET ${SUBPROJECT_NAME} POST_BUILD
-				   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${OPTIXIR_TARGET}.dir/optixir ${CMAKE_CURRENT_SOURCE_DIR}/optixir
-                   COMMENT "Copying .optixir files"
 )

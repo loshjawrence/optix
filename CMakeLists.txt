@@ -35,6 +35,7 @@ find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
+find_package(Thrust CONFIG REQUIRED)
 
 add_subdirectory(example01_helloOptix)
 add_subdirectory(example02_pipelineAndRayGen)

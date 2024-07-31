@@ -271,7 +271,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     rgba += float(optixLaunchParams.frame.frameID) * optixLaunchParams.frame.renderBuffer[fbIndex];
     rgba /= (optixLaunchParams.frame.frameID + 1.0f);
-    optixLaunchParams.frame.renderBuffer[fbIndex] = rgba;
+    optixLaunchParams.frame.renderBuffer[fbIndex] = normal;
     optixLaunchParams.frame.albedoBuffer[fbIndex] = albedo;
     optixLaunchParams.frame.normalBuffer[fbIndex] = normal;
 }

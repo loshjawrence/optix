@@ -3,6 +3,10 @@
 #include "SampleRenderer.h"
 #include <cuda.h>
 
+// not actually used, testing if include will compile without the usual errors
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+
 __device__ glm::vec4 clamp(glm::vec4 a, float min, float max)
 {
     return glm::vec4{
